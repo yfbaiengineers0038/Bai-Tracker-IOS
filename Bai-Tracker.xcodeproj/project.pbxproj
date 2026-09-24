@@ -1,0 +1,481 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1332E32B3232BE4D4A6949A1 /* PhotoCarouselViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB2643054132DC00B80F051C /* PhotoCarouselViewController.swift */; };
+		1BA70EE90D2F2631186512DD /* Amplify in Frameworks */ = {isa = PBXBuildFile; productRef = 0ABF86E0032956F3A5FCDA88 /* Amplify */; };
+		1BA8248F53DA16FF45523613 /* PointDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9770B5DCB9FEED68FF69B91 /* PointDetailViewController.swift */; };
+		2BA76D5C8191E9E340BAE852 /* AWSS3StoragePlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 99EB280F59A04CC9DB283784 /* AWSS3StoragePlugin */; };
+		3364F82A2A02134B2931B31E /* CategoryPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 094A3C7B3B272A483731B906 /* CategoryPickerView.swift */; };
+		3BCBB19AA744DF0D956DD2E6 /* CategoryColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 943707AF26AC7C92500212F1 /* CategoryColors.swift */; };
+		3DCEE4103BB7326774710DB6 /* PointListBottomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C71FCDC5D917365A26CFD6 /* PointListBottomSheet.swift */; };
+		43FA7A0E1E67AB3225C58DE4 /* NewPointViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE54D78F5FAD271884E16FD2 /* NewPointViewController.swift */; };
+		4CA62F9F02CCC6B2A0253854 /* ProjectPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A67A2C3677623EC6E159F4AE /* ProjectPickerViewController.swift */; };
+		530A0012201F5F18811F30EF /* Point.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BB4E8D478B12BC4208BA2A /* Point.swift */; };
+		6E77D8F5446E10C7F40CA0B7 /* PointData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD921502F8582F919AF37C4B /* PointData.swift */; };
+		797089DD3064708C000AA526 /* LoginPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797089DC3064708C000AA526 /* LoginPreferences.swift */; };
+		797089DF3064AF2C000AA526 /* MediaPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797089DE3064AF2C000AA526 /* MediaPipeline.swift */; };
+		797089E13064D7D9000AA526 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797089E03064D7D9000AA526 /* Secrets.swift */; };
+		79C3D9953064569B0091CED3 /* PlacesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C3D9943064569B0091CED3 /* PlacesService.swift */; };
+		79C3D997306456B60091CED3 /* PlacePickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C3D996306456B60091CED3 /* PlacePickerViewController.swift */; };
+		7C1B2CFF6ED91E929232CC9F /* RegisterViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB4904798AE659A8D1AA035 /* RegisterViewController.swift */; };
+		7C52592CFB298BEFDC580235 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 86DB401A1FF26505D9025321 /* Assets.xcassets */; };
+		8053580AD0510375C3BF9482 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4E5346459C8727BB5A8967 /* ViewController.swift */; };
+		82703A5FF4564DEACD2C6E14 /* AWSCognitoAuthPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 32A9426EAF4D5F00D345BEF0 /* AWSCognitoAuthPlugin */; };
+		98C35EC0C680899220D78122 /* CategoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33205F252873F23636C9B44A /* CategoryStore.swift */; };
+		A1FB98207B17985A6B247982 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258C144E046E3C88B2ACEA59 /* AppDelegate.swift */; };
+		A4E53C16C274E6D743BEC1DC /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26DE4CB2AB97995E6D582607 /* LoginViewController.swift */; };
+		B0B0B8149A9A5C728CAA3C38 /* bai-eng.png in Resources */ = {isa = PBXBuildFile; fileRef = A1D9E6A05F789CF4C6082886 /* bai-eng.png */; };
+		C439F44CD378DD9F6765C6E0 /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = 68C0FDC08D33B03D7353E8BD /* GoogleMaps */; };
+		C5BA66A1C1B670323E6ADA0B /* AWSAPIPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 344F3CA041C853853CD0CB1F /* AWSAPIPlugin */; };
+		CACDE3748BE0B42E8E5C073E /* amplify_outputs.json in Resources */ = {isa = PBXBuildFile; fileRef = 18C5715418EB4159C9522B68 /* amplify_outputs.json */; };
+		F18918C0C166FF880EA9656C /* category.csv in Resources */ = {isa = PBXBuildFile; fileRef = 5CE428AA676890805774E914 /* category.csv */; };
+		F4CB0684E269ABE57D2645BC /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE513FABF47FBB7AE1B8845F /* ProjectStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		094A3C7B3B272A483731B906 /* CategoryPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryPickerView.swift; sourceTree = "<group>"; };
+		18C5715418EB4159C9522B68 /* amplify_outputs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = amplify_outputs.json; sourceTree = "<group>"; };
+		258C144E046E3C88B2ACEA59 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		26DE4CB2AB97995E6D582607 /* LoginViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
+		33205F252873F23636C9B44A /* CategoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryStore.swift; sourceTree = "<group>"; };
+		3AACD762DC22D4FFC888F92C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3CB4904798AE659A8D1AA035 /* RegisterViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterViewController.swift; sourceTree = "<group>"; };
+		40958EBC936C0F4F77C862AC /* Bai-Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Bai-Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		53C71FCDC5D917365A26CFD6 /* PointListBottomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointListBottomSheet.swift; sourceTree = "<group>"; };
+		5CE428AA676890805774E914 /* category.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = category.csv; sourceTree = "<group>"; };
+		74BB4E8D478B12BC4208BA2A /* Point.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Point.swift; sourceTree = "<group>"; };
+		797089DC3064708C000AA526 /* LoginPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginPreferences.swift; sourceTree = "<group>"; };
+		797089DE3064AF2C000AA526 /* MediaPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPipeline.swift; sourceTree = "<group>"; };
+		797089E03064D7D9000AA526 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		79C3D9943064569B0091CED3 /* PlacesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacesService.swift; sourceTree = "<group>"; };
+		79C3D996306456B60091CED3 /* PlacePickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePickerViewController.swift; sourceTree = "<group>"; };
+		86DB401A1FF26505D9025321 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		943707AF26AC7C92500212F1 /* CategoryColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryColors.swift; sourceTree = "<group>"; };
+		A1D9E6A05F789CF4C6082886 /* bai-eng.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "bai-eng.png"; sourceTree = "<group>"; };
+		A67A2C3677623EC6E159F4AE /* ProjectPickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPickerViewController.swift; sourceTree = "<group>"; };
+		BD921502F8582F919AF37C4B /* PointData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointData.swift; sourceTree = "<group>"; };
+		DE513FABF47FBB7AE1B8845F /* ProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
+		E9770B5DCB9FEED68FF69B91 /* PointDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointDetailViewController.swift; sourceTree = "<group>"; };
+		FA4E5346459C8727BB5A8967 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		FB2643054132DC00B80F051C /* PhotoCarouselViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCarouselViewController.swift; sourceTree = "<group>"; };
+		FE54D78F5FAD271884E16FD2 /* NewPointViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewPointViewController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		34602A770E3E6AC26FBA4D06 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1BA70EE90D2F2631186512DD /* Amplify in Frameworks */,
+				82703A5FF4564DEACD2C6E14 /* AWSCognitoAuthPlugin in Frameworks */,
+				C5BA66A1C1B670323E6ADA0B /* AWSAPIPlugin in Frameworks */,
+				2BA76D5C8191E9E340BAE852 /* AWSS3StoragePlugin in Frameworks */,
+				C439F44CD378DD9F6765C6E0 /* GoogleMaps in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		12E09CC1070E7F0A69CAD6EC /* Bai-Tracker */ = {
+			isa = PBXGroup;
+			children = (
+				258C144E046E3C88B2ACEA59 /* AppDelegate.swift */,
+				943707AF26AC7C92500212F1 /* CategoryColors.swift */,
+				094A3C7B3B272A483731B906 /* CategoryPickerView.swift */,
+				33205F252873F23636C9B44A /* CategoryStore.swift */,
+				26DE4CB2AB97995E6D582607 /* LoginViewController.swift */,
+				FE54D78F5FAD271884E16FD2 /* NewPointViewController.swift */,
+				FB2643054132DC00B80F051C /* PhotoCarouselViewController.swift */,
+				74BB4E8D478B12BC4208BA2A /* Point.swift */,
+				BD921502F8582F919AF37C4B /* PointData.swift */,
+				E9770B5DCB9FEED68FF69B91 /* PointDetailViewController.swift */,
+				53C71FCDC5D917365A26CFD6 /* PointListBottomSheet.swift */,
+				A67A2C3677623EC6E159F4AE /* ProjectPickerViewController.swift */,
+				DE513FABF47FBB7AE1B8845F /* ProjectStore.swift */,
+				3CB4904798AE659A8D1AA035 /* RegisterViewController.swift */,
+				FA4E5346459C8727BB5A8967 /* ViewController.swift */,
+				86DB401A1FF26505D9025321 /* Assets.xcassets */,
+				A1D9E6A05F789CF4C6082886 /* bai-eng.png */,
+				5CE428AA676890805774E914 /* category.csv */,
+				18C5715418EB4159C9522B68 /* amplify_outputs.json */,
+				3AACD762DC22D4FFC888F92C /* Info.plist */,
+				79C3D9943064569B0091CED3 /* PlacesService.swift */,
+				79C3D996306456B60091CED3 /* PlacePickerViewController.swift */,
+				797089DC3064708C000AA526 /* LoginPreferences.swift */,
+				797089DE3064AF2C000AA526 /* MediaPipeline.swift */,
+				797089E03064D7D9000AA526 /* Secrets.swift */,
+			);
+			path = "Bai-Tracker";
+			sourceTree = "<group>";
+		};
+		4BB41E7C189C939F23612010 = {
+			isa = PBXGroup;
+			children = (
+				12E09CC1070E7F0A69CAD6EC /* Bai-Tracker */,
+				A5DC16AFAAF7D256BDD9FB3C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A5DC16AFAAF7D256BDD9FB3C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				40958EBC936C0F4F77C862AC /* Bai-Tracker.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* Bai-Tracker */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD7B903BF5B76A92FBB9FF44 /* Build configuration list for PBXNativeTarget "Bai-Tracker" */;
+			buildPhases = (
+				0E0A521F6FCE65D35667A616 /* Sources */,
+				34602A770E3E6AC26FBA4D06 /* Frameworks */,
+				6EE38498534294A6FC4105B7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Bai-Tracker";
+			packageProductDependencies = (
+				0ABF86E0032956F3A5FCDA88 /* Amplify */,
+				32A9426EAF4D5F00D345BEF0 /* AWSCognitoAuthPlugin */,
+				344F3CA041C853853CD0CB1F /* AWSAPIPlugin */,
+				99EB280F59A04CC9DB283784 /* AWSS3StoragePlugin */,
+				68C0FDC08D33B03D7353E8BD /* GoogleMaps */,
+			);
+			productName = "Bai-Tracker";
+			productReference = 40958EBC936C0F4F77C862AC /* Bai-Tracker.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					42AEFBAE01D2DFD981F7DA7D = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = F9FBB92E94E3EF23FA14607F /* Build configuration list for PBXProject "Bai-Tracker" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4BB41E7C189C939F23612010;
+			packageReferences = (
+				38C1B86766D6AF7AAEF0957E /* XCRemoteSwiftPackageReference "amplify-swift" */,
+				87BB1BE111ACC091F8AE78DD /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
+			);
+			productRefGroup = A5DC16AFAAF7D256BDD9FB3C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* Bai-Tracker */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		6EE38498534294A6FC4105B7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7C52592CFB298BEFDC580235 /* Assets.xcassets in Resources */,
+				B0B0B8149A9A5C728CAA3C38 /* bai-eng.png in Resources */,
+				F18918C0C166FF880EA9656C /* category.csv in Resources */,
+				CACDE3748BE0B42E8E5C073E /* amplify_outputs.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0E0A521F6FCE65D35667A616 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1FB98207B17985A6B247982 /* AppDelegate.swift in Sources */,
+				797089E13064D7D9000AA526 /* Secrets.swift in Sources */,
+				3BCBB19AA744DF0D956DD2E6 /* CategoryColors.swift in Sources */,
+				3364F82A2A02134B2931B31E /* CategoryPickerView.swift in Sources */,
+				98C35EC0C680899220D78122 /* CategoryStore.swift in Sources */,
+				A4E53C16C274E6D743BEC1DC /* LoginViewController.swift in Sources */,
+				43FA7A0E1E67AB3225C58DE4 /* NewPointViewController.swift in Sources */,
+				1332E32B3232BE4D4A6949A1 /* PhotoCarouselViewController.swift in Sources */,
+				79C3D9953064569B0091CED3 /* PlacesService.swift in Sources */,
+				530A0012201F5F18811F30EF /* Point.swift in Sources */,
+				6E77D8F5446E10C7F40CA0B7 /* PointData.swift in Sources */,
+				1BA8248F53DA16FF45523613 /* PointDetailViewController.swift in Sources */,
+				3DCEE4103BB7326774710DB6 /* PointListBottomSheet.swift in Sources */,
+				797089DD3064708C000AA526 /* LoginPreferences.swift in Sources */,
+				4CA62F9F02CCC6B2A0253854 /* ProjectPickerViewController.swift in Sources */,
+				F4CB0684E269ABE57D2645BC /* ProjectStore.swift in Sources */,
+				797089DF3064AF2C000AA526 /* MediaPipeline.swift in Sources */,
+				79C3D997306456B60091CED3 /* PlacePickerViewController.swift in Sources */,
+				7C1B2CFF6ED91E929232CC9F /* RegisterViewController.swift in Sources */,
+				8053580AD0510375C3BF9482 /* ViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		4C95F91A6D5CD87BB5DB8FDD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		969595A508627F35A110362C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A3FD2624D90AA76C1E18FB70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Bai-Tracker/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bai-eng.tracker";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CB4CAEBFF1A865FD02635BC0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Bai-Tracker/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bai-eng.tracker";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DD7B903BF5B76A92FBB9FF44 /* Build configuration list for PBXNativeTarget "Bai-Tracker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A3FD2624D90AA76C1E18FB70 /* Debug */,
+				CB4CAEBFF1A865FD02635BC0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F9FBB92E94E3EF23FA14607F /* Build configuration list for PBXProject "Bai-Tracker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				969595A508627F35A110362C /* Debug */,
+				4C95F91A6D5CD87BB5DB8FDD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		38C1B86766D6AF7AAEF0957E /* XCRemoteSwiftPackageReference "amplify-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/aws-amplify/amplify-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		87BB1BE111ACC091F8AE78DD /* XCRemoteSwiftPackageReference "ios-maps-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googlemaps/ios-maps-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0ABF86E0032956F3A5FCDA88 /* Amplify */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 38C1B86766D6AF7AAEF0957E /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = Amplify;
+		};
+		32A9426EAF4D5F00D345BEF0 /* AWSCognitoAuthPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 38C1B86766D6AF7AAEF0957E /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSCognitoAuthPlugin;
+		};
+		344F3CA041C853853CD0CB1F /* AWSAPIPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 38C1B86766D6AF7AAEF0957E /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSAPIPlugin;
+		};
+		68C0FDC08D33B03D7353E8BD /* GoogleMaps */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 87BB1BE111ACC091F8AE78DD /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;
+			productName = GoogleMaps;
+		};
+		99EB280F59A04CC9DB283784 /* AWSS3StoragePlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 38C1B86766D6AF7AAEF0957E /* XCRemoteSwiftPackageReference "amplify-swift" */;
+			productName = AWSS3StoragePlugin;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

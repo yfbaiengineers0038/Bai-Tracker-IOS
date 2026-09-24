@@ -1,0 +1,10 @@
+xcuserdata/
+DerivedData/
+.DS_Store
+*.xcuserstate
+__MACOSX/
+.claude/
+
+# Real credentials. Copy Secrets.swift.example to Secrets.swift locally;
+# never commit the filled-in version.
+Bai-Tracker/Secrets.swift
