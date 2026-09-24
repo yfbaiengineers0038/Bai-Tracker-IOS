@@ -1,9 +1,9 @@
 {
   "auth": {
-    "user_pool_id": "us-east-1_sapKrmf3g",
-    "aws_region": "us-east-1",
-    "user_pool_client_id": "47i1gk4p7jdgj4361pnre7qlir",
-    "identity_pool_id": "us-east-1:7e6bd544-1090-46c0-9eec-d7abb42e3377",
+    "user_pool_id": "us-west-1_f6u4eANOI",
+    "aws_region": "us-west-1",
+    "user_pool_client_id": "refp2hi3dinimf7pgh4calb48",
+    "identity_pool_id": "us-west-1:df5f7c7e-7ebe-4c8f-ab25-b53b925ec5fb",
     "mfa_methods": [],
     "standard_required_attributes": [
       "email"
@@ -26,8 +26,8 @@
     "unauthenticated_identities_enabled": true
   },
   "data": {
-    "url": "https://hloc6cjpxjdltfgcmizcrata4e.appsync-api.us-east-1.amazonaws.com/graphql",
-    "aws_region": "us-east-1",
+    "url": "https://ggtrrikchvhtrp26wuxt6nvdyu.appsync-api.us-west-1.amazonaws.com/graphql",
+    "aws_region": "us-west-1",
     "default_authorization_type": "AMAZON_COGNITO_USER_POOLS",
     "authorization_types": [
       "AWS_IAM"
@@ -70,6 +70,48 @@
               "name": "zoom",
               "isArray": false,
               "type": "Float",
+              "isRequired": false,
+              "attributes": []
+            },
+            "coordinateSystemEpsg": {
+              "name": "coordinateSystemEpsg",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "coordinateSystemName": {
+              "name": "coordinateSystemName",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "coordinateUnits": {
+              "name": "coordinateUnits",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "coordinateSystemConfirmed": {
+              "name": "coordinateSystemConfirmed",
+              "isArray": false,
+              "type": "Boolean",
+              "isRequired": false,
+              "attributes": []
+            },
+            "verticalDatum": {
+              "name": "verticalDatum",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "elevationUnits": {
+              "name": "elevationUnits",
+              "isArray": false,
+              "type": "String",
               "isRequired": false,
               "attributes": []
             },
@@ -179,6 +221,20 @@
               "isArray": false,
               "type": "Float",
               "isRequired": true,
+              "attributes": []
+            },
+            "pointNumber": {
+              "name": "pointNumber",
+              "isArray": false,
+              "type": "Int",
+              "isRequired": false,
+              "attributes": []
+            },
+            "elevation": {
+              "name": "elevation",
+              "isArray": false,
+              "type": "Float",
+              "isRequired": false,
               "attributes": []
             },
             "description": {
@@ -293,13 +349,13 @@
     }
   },
   "storage": {
-    "aws_region": "us-east-1",
-    "bucket_name": "amplify-dtxcwk6ci1ewu-mai-pointphotosbucketac26990-hw7uhkrluhew",
+    "aws_region": "us-west-1",
+    "bucket_name": "amplify-d2scw4wu3k4fv4-ma-pointphotosbucketac26990-ofcexiedos2c",
     "buckets": [
       {
         "name": "pointPhotos",
-        "bucket_name": "amplify-dtxcwk6ci1ewu-mai-pointphotosbucketac26990-hw7uhkrluhew",
-        "aws_region": "us-east-1",
+        "bucket_name": "amplify-d2scw4wu3k4fv4-ma-pointphotosbucketac26990-ofcexiedos2c",
+        "aws_region": "us-west-1",
         "paths": {
           "point-photos/*": {
             "authenticated": [
