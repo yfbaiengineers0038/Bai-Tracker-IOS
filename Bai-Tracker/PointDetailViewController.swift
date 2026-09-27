@@ -20,17 +20,6 @@ final class PointDetailViewController: UIViewController {
     /// Audio buttons stage into this; Finish sends the whole batch at once.
     private var pendingItems: [PendingMedia] = []
 
-    /// The running S3 upload, so it can be cancelled mid-flight.
-    private var activeUpload: StorageUploadFileTask?
-
-    /// Appears only while an upload is in progress.
-    private lazy var cancelUploadButton: UIButton = {
-        let b = makeButton(title: "Cancel Upload", color: .systemGray,
-                           action: #selector(cancelUpload))
-        b.isHidden = true
-        return b
-    }()
-
     /// Live voice-memo recorder; non-nil only while recording.
     private var audioRecorder: AVAudioRecorder?
     /// Ticks the elapsed-time readout while recording.
@@ -172,7 +161,7 @@ final class PointDetailViewController: UIViewController {
             categoryField,
             commentsHeader, commentsStack, commentInputRow,
             photoCollection, pendingTray,
-            mediaRow, statusLabel, cancelUploadButton, actionRow
+            mediaRow, statusLabel, actionRow
         ])
         stack.axis = .vertical
         stack.spacing = 14
@@ -427,180 +416,61 @@ final class PointDetailViewController: UIViewController {
 
     // MARK: - Upload button
 
-    /// Commits the point: uploads the whole staged batch (including a memo the
-    /// user just recorded), then saves the edited fields and closes the sheet.
+    /// Saves the edited fields, hands any new media to the upload queue, and
+    /// closes.
+    ///
+    /// The point already exists, so its media can be queued and left to finish
+    /// in the background — leaving this screen, backgrounding, or a force-quit
+    /// no longer loses it.
     @objc private func uploadAndSave() {
         // A recording still running would otherwise be lost on dismiss.
         if audioRecorder?.isRecording == true { stopRecording() }
 
-        guard !pendingItems.isEmpty else {
-            save()
-            return
+        let queued = queueStagedMedia()
+        if queued > 0 {
+            showStatus("\(queued) item\(queued == 1 ? "" : "s") uploading in the background…",
+                       color: .secondaryLabel)
         }
-
-        Task {
-            // Only close once every item is safely attached; anything that
-            // failed stays staged so Finish can be tapped again.
-            if await uploadStagedBatch() { save() }
-        }
+        save()
     }
 
-    /// Uploads every staged item, then attaches the whole batch to the point in
-    /// a single mutation. Returns true only if nothing was left behind.
+    /// Hands every staged capture to the queue. Returns how many were queued.
     ///
-    /// Items that fail stay staged (with their scratch files intact) so Finish
-    /// can be tapped again without re-shooting.
-    private func uploadStagedBatch() async -> Bool {
-        let batch = pendingItems
-        var uploaded: [(id: UUID, key: String, item: MediaItem, scratch: [URL])] = []
+    /// Photos are encoded here — quick, and it means the queue holds
+    /// upload-ready bytes. Videos are queued as-is and transcoded by the
+    /// worker, so a long clip doesn't hold this screen open.
+    private func queueStagedMedia() -> Int {
+        var queued = 0
+        for staged in pendingItems {
+            switch staged.kind {
+            case .photo(let image):
+                guard let data = MediaPipeline.photoData(from: image) else { continue }
+                UploadQueue.shared.enqueue(
+                    data: data,
+                    key: "\(MediaPipeline.mediaPrefix)/\(point.id)-\(UUID().uuidString).jpg",
+                    pointId: point.id)
 
-        for (index, staged) in batch.enumerated() {
-            let label = "Item \(index + 1) of \(batch.count)"
-            if let result = await upload(staged, label: label) {
-                uploaded.append((staged.id, result.key, result.item, result.scratch))
+            case .audio(let url):
+                UploadQueue.shared.enqueue(
+                    file: url,
+                    key: "\(MediaPipeline.mediaPrefix)/\(point.id)-\(UUID().uuidString).m4a",
+                    pointId: point.id,
+                    needsTranscode: false)
+
+            case .video(let url):
+                let ext = url.pathExtension.isEmpty ? "mp4" : url.pathExtension
+                UploadQueue.shared.enqueue(
+                    file: url,
+                    key: "\(MediaPipeline.mediaPrefix)/\(point.id)-\(UUID().uuidString).\(ext)",
+                    pointId: point.id,
+                    needsTranscode: true)
             }
+            queued += 1
         }
-
-        guard !uploaded.isEmpty else {
-            pendingTray.update(with: pendingItems)
-            return false
-        }
-
-        // One write for the batch rather than one per item.
-        let photos = point.photos + uploaded.map(\.key)
-        do {
-            try await updatePhotosOnBackend(photos)
-        } catch {
-            showStatus("Uploaded but metadata save failed: \(String(reflecting: error))",
-                       color: .systemOrange)
-            // The bytes are in S3 but nothing references them — remove the
-            // objects rather than leave them orphaned in the bucket, and keep
-            // the items staged so the user can retry.
-            for entry in uploaded { await MediaPipeline.deleteOrphan(key: entry.key) }
-            return false
-        }
-
-        MediaPipeline.discardScratch(uploaded.flatMap(\.scratch))
-        point.photos = photos
-        loadedMedia.append(contentsOf: uploaded.map(\.item))
-        // Drop only what went up: anything captured while the batch was in
-        // flight stays staged for the next Finish.
-        let sent = Set(uploaded.map(\.id))
-        pendingItems.removeAll { sent.contains($0.id) }
+        // The queue owns those files now, so don't let `cancel` delete them.
+        pendingItems = []
         pendingTray.update(with: pendingItems)
-        photoCollection.isHidden = false
-        photoCollection.reloadData()
-        delegate?.pointDetailDidUpdate(point)
-
-        if pendingItems.isEmpty {
-            showStatus("Uploaded \(uploaded.count) item\(uploaded.count == 1 ? "" : "s")!",
-                       color: .systemGreen)
-        } else {
-            showStatus("Uploaded \(uploaded.count) of \(batch.count)"
-                       + " — \(pendingItems.count) still staged.", color: .systemOrange)
-        }
-        return pendingItems.isEmpty
-    }
-
-    /// Uploads one staged item to S3 and returns its key, the gallery entry for
-    /// it, and the scratch files that become safe to delete once attached.
-    private func upload(_ staged: PendingMedia, label: String)
-    async -> (key: String, item: MediaItem, scratch: [URL])? {
-        let prefix = MediaPipeline.mediaPrefix
-
-        switch staged.kind {
-        case .photo(let image):
-            guard let data = MediaPipeline.photoData(from: image) else {
-                showStatus("\(label): couldn't encode the photo.", color: .systemRed)
-                return nil
-            }
-            let key = "\(prefix)/\(point.id)-\(UUID().uuidString).jpg"
-            showStatus("\(label) · uploading photo…", color: .secondaryLabel)
-            do {
-                _ = try await Amplify.Storage.uploadData(path: .fromString(key), data: data).value
-            } catch {
-                showStatus("\(label): S3 upload failed: \(String(reflecting: error))",
-                           color: .systemRed)
-                return nil
-            }
-            return (key, .photo(image), [])
-
-        case .audio(let audioURL):
-            let key = "\(prefix)/\(point.id)-\(UUID().uuidString).m4a"
-            guard await send(audioURL, key: key, label: label) else { return nil }
-            let playURL = (try? await Amplify.Storage.getURL(path: .fromString(key))) ?? audioURL
-            return (key,
-                    .video(thumbnail: NewPointViewController.audioThumbnail(), url: playURL),
-                    [audioURL])
-
-        case .video(let videoURL):
-            // Shrink first — this is usually the difference between a
-            // 30-second upload and a 5-minute one on a site connection.
-            showStatus("\(label) · preparing video…", color: .secondaryLabel)
-            let prepared = await MediaPipeline.prepareVideo(at: videoURL)
-            if prepared.didShrink {
-                showStatus("\(label) · compressed to \(MediaPipeline.format(bytes: prepared.byteCount))"
-                           + " (was \(MediaPipeline.format(bytes: prepared.originalByteCount)))",
-                           color: .secondaryLabel)
-            }
-
-            let key = "\(prefix)/\(point.id)-\(UUID().uuidString).\(prepared.url.pathExtension)"
-            guard await send(prepared.url, key: key, label: label) else {
-                // Drop the transcode but keep the original: the item stays
-                // staged and can be retried.
-                MediaPipeline.discardScratch(prepared.scratchURLs.filter { $0 != videoURL })
-                return nil
-            }
-
-            let thumbnail = await Task.detached(priority: .userInitiated) { [url = prepared.url] in
-                Self.videoThumbnail(from: url) ?? UIImage()
-            }.value
-            let playURL = (try? await Amplify.Storage.getURL(path: .fromString(key))) ?? prepared.url
-            return (key, .video(thumbnail: thumbnail, url: playURL), prepared.scratchURLs)
-        }
-    }
-
-    /// Uploads a file with live progress and cancellation.
-    private func send(_ url: URL, key: String, label: String) async -> Bool {
-        setUploadInProgress(true)
-        do {
-            try await MediaPipeline.uploadFile(
-                at: url,
-                key: key,
-                onStart: { [weak self] task in self?.activeUpload = task },
-                onProgress: { [weak self] fraction, sent, total in
-                    Task { @MainActor in
-                        self?.showStatus(
-                            "\(label) · "
-                            + MediaPipeline.progressText(fraction: fraction, sent: sent, total: total),
-                            color: .secondaryLabel)
-                    }
-                })
-        } catch {
-            setUploadInProgress(false)
-            let text = String(describing: error).lowercased()
-            showStatus(text.contains("cancel")
-                       ? "\(label): upload cancelled."
-                       : "\(label): upload failed: \(error.localizedDescription)",
-                       color: text.contains("cancel") ? .systemOrange : .systemRed)
-            return false
-        }
-        setUploadInProgress(false)
-        return true
-    }
-
-    // MARK: - Upload progress / cancellation
-
-    private func setUploadInProgress(_ uploading: Bool) {
-        cancelUploadButton.isHidden = !uploading
-        if !uploading { activeUpload = nil }
-    }
-
-    @objc private func cancelUpload() {
-        activeUpload?.cancel()
-        activeUpload = nil
-        cancelUploadButton.isHidden = true
-        showStatus("Upload cancelled.", color: .systemOrange)
+        return queued
     }
 
     private func updatePhotosOnBackend(_ photos: [String]) async throws {
@@ -711,6 +581,9 @@ final class PointDetailViewController: UIViewController {
         let req = GraphQLRequest<R>(document: mutation, variables: ["input": ["id": point.id]], responseType: R.self)
         Task {
             if case .success = (try? await Amplify.API.mutate(request: req)) ?? .failure(.unknown("", "", nil)) {
+                // Anything still queued for this point has nowhere to attach
+                // to now; drop it rather than retry against a dead id.
+                UploadQueue.shared.cancelAll(forPoint: point.id)
                 delegate?.pointDetailDidDelete(id: point.id)
                 dismiss(animated: true)
             }

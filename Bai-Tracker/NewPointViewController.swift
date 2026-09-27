@@ -16,29 +16,10 @@ final class NewPointViewController: UIViewController {
     /// goes up together when the user taps Finish.
     private var pendingItems: [PendingMedia] = []
 
-    /// The running S3 upload, so it can be cancelled mid-flight.
-    private var activeUpload: StorageUploadFileTask?
-
-    /// Appears only while an upload is in progress.
-    private let cancelUploadButton: UIButton = {
-        var c = UIButton.Configuration.plain()
-        c.title = "Cancel Upload"
-        c.baseForegroundColor = .systemRed
-        let b = UIButton(configuration: c)
-        b.isHidden = true
-        return b
-    }()
-
     /// Live voice-memo recorder; non-nil only while recording.
     private var audioRecorder: AVAudioRecorder?
     /// Ticks the elapsed-time readout while recording.
     private var recordingTimer: Timer?
-    // S3 keys + thumbnails collected for items already uploaded.
-    private var uploadedKeys: [String] = []
-    private var uploadedThumbs: [UIImage] = []
-    /// Lazily set on the first upload: the point is created immediately so each
-    /// subsequent upload auto-saves to it.
-    private var pointId: String?
 
     // MARK: - Controls
 
@@ -93,25 +74,6 @@ final class NewPointViewController: UIViewController {
     /// Everything captured but not yet uploaded. Hidden while empty.
     private let pendingTray = PendingMediaTray()
 
-    /// One thumbnail chip per already-uploaded item.
-    private let uploadedChipsStack: UIStackView = {
-        let s = UIStackView()
-        s.axis = .horizontal
-        s.spacing = 8
-        s.alignment = .center
-        s.translatesAutoresizingMaskIntoConstraints = false
-        return s
-    }()
-
-    private let uploadedLabel: UILabel = {
-        let l = UILabel()
-        l.text = "Uploaded"
-        l.font = .systemFont(ofSize: 12, weight: .medium)
-        l.textColor = .secondaryLabel
-        l.isHidden = true
-        return l
-    }()
-
     // MARK: - Init
 
     init(coordinate: CLLocationCoordinate2D) {
@@ -159,18 +121,14 @@ final class NewPointViewController: UIViewController {
         photoButton.addTarget(self, action: #selector(addPhoto), for: .touchUpInside)
         videoButton.addTarget(self, action: #selector(addVideo), for: .touchUpInside)
         uploadButton.addTarget(self, action: #selector(uploadAndSave), for: .touchUpInside)
-        cancelUploadButton.addTarget(self, action: #selector(cancelUpload), for: .touchUpInside)
         let mediaButtonsRow = hStack([photoButton, videoButton, uploadButton])
 
         pendingTray.onRemove = { [weak self] index in self?.removeStaged(at: index) }
 
-        uploadedChipsStack.isHidden = true
-
         let stack = UIStackView(arrangedSubviews: [
             coordLabel, dateRow, timeRow, locRow, descRow, catRow,
             mediaButtonsRow, pendingTray,
-            uploadedLabel, uploadedChipsStack,
-            statusLabel, cancelUploadButton, actionRow
+            statusLabel, actionRow
         ])
         stack.axis = .vertical
         stack.spacing = 16
@@ -197,63 +155,87 @@ final class NewPointViewController: UIViewController {
 
     // MARK: - Actions
 
-    /// Commits the point: uploads the whole staged batch (including a memo the
-    /// user just recorded), then saves the form fields and closes the sheet.
+    /// Commits the point, then hands its media to the upload queue and closes.
+    ///
+    /// The point is saved first because it's small and fast; media is queued
+    /// rather than awaited, so the sheet closes immediately and the crew can
+    /// walk to the next location while the clip is still going up. Anything
+    /// unfinished survives leaving the screen, backgrounding, or a force-quit.
     @objc private func uploadAndSave() {
         // A recording still running would otherwise be lost on dismiss.
         if audioRecorder?.isRecording == true { stopRecording() }
 
-        guard !pendingItems.isEmpty else {
-            save()
-            return
-        }
-
-        uploadButton.isEnabled = false
-        Task {
-            let allUploaded = await uploadStagedBatch()
-            uploadButton.isEnabled = true
-            // Only close once every item is safely attached; anything that
-            // failed stays staged so Finish can be tapped again.
-            if allUploaded { save() }
-        }
-    }
-
-    private func save() {
         guard let projectId = ProjectStore.shared.current?.id else {
             showStatus("Select a project before creating a point.", color: .systemOrange)
             return
         }
 
+        uploadButton.isEnabled = false
         showStatus("Saving…", color: .secondaryLabel)
+
         Task {
-            if let existingId = pointId {
-                // Point was already created on first upload — just refresh its
-                // fields and dismiss.
-                let updated = await refreshPointFields(id: existingId, projectId: projectId)
-                await MainActor.run {
-                    if let updated { delegate?.pointDetailDidUpdate(updated) }
-                    dismiss(animated: true)
-                }
-            } else {
-                // No media was uploaded first — create the point now.
-                let created = await createPoint(id: nil, projectId: projectId, initialKeys: nil)
-                await MainActor.run {
-                    if let created {
-                        delegate?.pointDetailDidCreate(created)
-                        dismiss(animated: true)
-                    } else {
-                        showStatus("Failed to create point.", color: .systemRed)
-                    }
-                }
+            guard let created = await createPoint(id: nil, projectId: projectId,
+                                                  initialKeys: nil) else {
+                uploadButton.isEnabled = true
+                showStatus("Failed to create point.", color: .systemRed)
+                return
             }
+
+            let queued = queueStagedMedia(forPoint: created.id)
+            delegate?.pointDetailDidCreate(created)
+
+            if queued > 0 {
+                showStatus("Saved. \(queued) item\(queued == 1 ? "" : "s") uploading…",
+                           color: .systemGreen)
+            }
+            dismiss(animated: true)
         }
+    }
+
+    /// Hands every staged capture to the queue. Returns how many were queued.
+    ///
+    /// Photos are encoded here — it's quick, and it means the queue stores
+    /// upload-ready bytes. Videos are queued as-is and transcoded by the
+    /// worker, so a 90-second clip doesn't hold the sheet open.
+    private func queueStagedMedia(forPoint pointId: String) -> Int {
+        var queued = 0
+        for item in pendingItems {
+            switch item.kind {
+            case .photo(let image):
+                guard let data = MediaPipeline.photoData(from: image) else { continue }
+                UploadQueue.shared.enqueue(
+                    data: data,
+                    key: "\(MediaPipeline.mediaPrefix)/\(UUID().uuidString).jpg",
+                    pointId: pointId)
+
+            case .audio(let url):
+                UploadQueue.shared.enqueue(
+                    file: url,
+                    key: "\(MediaPipeline.mediaPrefix)/\(UUID().uuidString).m4a",
+                    pointId: pointId,
+                    needsTranscode: false)
+
+            case .video(let url):
+                let ext = url.pathExtension.isEmpty ? "mp4" : url.pathExtension
+                UploadQueue.shared.enqueue(
+                    file: url,
+                    key: "\(MediaPipeline.mediaPrefix)/\(UUID().uuidString).\(ext)",
+                    pointId: pointId,
+                    needsTranscode: true)
+            }
+            queued += 1
+        }
+        // The queue owns those files now, so don't let `cancel` delete them.
+        pendingItems = []
+        pendingTray.update(with: pendingItems)
+        return queued
     }
 
     /// Creates the point on the backend. If `initialKeys` is provided, those
     /// are attached as the point's first media (first-upload flow). Returns the
     /// created PointData, or nil on failure.
     private func createPoint(id: String?, projectId: String, initialKeys: [String]?) async -> PointData? {
-        let photos = initialKeys ?? uploadedKeys
+        let photos = initialKeys ?? []
         var input: [String: Any] = [
             "date":        formatted(datePicker.date, mode: .date),
             "time":        formatted(timePicker.date, mode: .time),
@@ -304,104 +286,6 @@ final class NewPointViewController: UIViewController {
                              timezone: c.timezone, comments: c.comments ?? [],
                              category: c.category, projectId: c.projectId)
         } catch { return nil }
-    }
-
-    /// Pushes the current form fields to an existing point and returns the
-    /// refreshed PointData (used on save when the point already exists).
-    private func refreshPointFields(id: String, projectId: String) async -> PointData? {
-        let vars: [String: Any] = ["input": [
-            "id":          id,
-            "date":        formatted(datePicker.date, mode: .date),
-            "time":        formatted(timePicker.date, mode: .time),
-            "location":    locationField.text?.trimmingCharacters(in: .whitespaces) ?? "",
-            "description": descriptionField.text?.trimmingCharacters(in: .whitespaces) ?? "",
-            "category":    categoryField.categoryName?.trimmingCharacters(in: .whitespaces) ?? "",
-            "photos":      uploadedKeys
-        ]]
-        let mutation = """
-        mutation UpdatePoint($input: UpdatePointInput!) {
-          updatePoint(input: $input) {
-            id date time location description lat lng photos timezone comments category projectId
-          }
-        }
-        """
-        struct U: Decodable {
-            let id: String; let date: String; let time: String?
-            let location: String?; let description: String?
-            let lat: Double; let lng: Double; let photos: [String]?
-            let timezone: String?; let comments: [String]?; let category: String?
-            let projectId: String?
-        }
-        struct R: Decodable { let updatePoint: U }
-        let req = GraphQLRequest<R>(document: mutation, variables: vars, responseType: R.self)
-        do {
-            let result = try await Amplify.API.mutate(request: req)
-            guard case .success(let data) = result else { return nil }
-            let u = data.updatePoint
-            return PointData(id: u.id, date: u.date, time: u.time,
-                             location: u.location, description: u.description,
-                             lat: u.lat, lng: u.lng, photos: u.photos ?? [],
-                             timezone: u.timezone, comments: u.comments ?? [],
-                             category: u.category, projectId: u.projectId)
-        } catch { return nil }
-    }
-
-    /// Ensures the point exists (creating it lazily on the first upload), then
-    /// attaches `keys` to its photos in a single write — one mutation for the
-    /// whole batch rather than one per item.
-    private func ensurePointCreated(addingKeys keys: [String]) async -> Bool {
-        guard let projectId = ProjectStore.shared.current?.id else {
-            await MainActor.run {
-                showStatus("Select a project before uploading.", color: .systemOrange)
-            }
-            return false
-        }
-        if pointId == nil {
-            // First upload → create the point with this batch attached.
-            let created = await createPoint(id: nil, projectId: projectId, initialKeys: keys)
-            guard let created else {
-                await MainActor.run {
-                    showStatus("Failed to create point for upload.", color: .systemRed)
-                }
-                return false
-            }
-            pointId = created.id
-            uploadedKeys = created.photos        // server is source of truth
-            // Tell the map about the new point so its marker appears immediately.
-            await MainActor.run { delegate?.pointDetailDidCreate(created) }
-            return true
-        } else {
-            // Point already exists → append the batch (mirrors PointDetailVC).
-            let updated = uploadedKeys + keys
-            do {
-                try await updatePhotosOnBackend(id: pointId!, photos: updated)
-                uploadedKeys = updated
-                return true
-            } catch {
-                await MainActor.run {
-                    showStatus("Uploaded but metadata save failed.", color: .systemOrange)
-                }
-                return false
-            }
-        }
-    }
-
-    /// Appends the photo list to an existing point (mirrors PointDetailVC).
-    private func updatePhotosOnBackend(id: String, photos: [String]) async throws {
-        let mutation = """
-        mutation UpdatePoint($input: UpdatePointInput!) {
-          updatePoint(input: $input) { id photos }
-        }
-        """
-        struct P: Decodable { let id: String; let photos: [String]? }
-        struct R: Decodable { let updatePoint: P }
-        let vars: [String: Any] = ["input": ["id": id, "photos": photos]]
-        let req = GraphQLRequest<R>(document: mutation, variables: vars, responseType: R.self)
-        let result = try await Amplify.API.mutate(request: req)
-        if case .failure(let e) = result {
-            throw NSError(domain: "GraphQL", code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: String(reflecting: e)])
-        }
     }
 
     @objc private func cancel() {
@@ -712,161 +596,6 @@ final class NewPointViewController: UIViewController {
         return UIImage(cgImage: cgImage)
     }
 
-    // MARK: - Upload (S3 via Amplify Storage)
-
-    /// Uploads every staged item, then attaches the whole batch to the point in
-    /// a single mutation. Returns true only if nothing was left behind.
-    ///
-    /// Items that fail stay staged (with their scratch files intact) so Finish
-    /// can be tapped again without re-shooting.
-    private func uploadStagedBatch() async -> Bool {
-        let batch = pendingItems
-        var uploaded: [(id: UUID, key: String, thumbnail: UIImage, scratch: [URL])] = []
-
-        for (index, item) in batch.enumerated() {
-            let label = "Item \(index + 1) of \(batch.count)"
-            if let result = await upload(item, label: label) {
-                uploaded.append((item.id, result.key, result.thumbnail, result.scratch))
-            }
-        }
-
-        guard !uploaded.isEmpty else {
-            pendingTray.update(with: pendingItems)
-            return false
-        }
-
-        // One write for the batch: create the point with these keys, or append
-        // them to the point created by an earlier batch.
-        let attached = await ensurePointCreated(addingKeys: uploaded.map(\.key))
-        guard attached else {
-            // The bytes are in S3 but nothing references them — remove the
-            // objects rather than leave them orphaned in the bucket, and keep
-            // the items staged so the user can retry.
-            for item in uploaded { await MediaPipeline.deleteOrphan(key: item.key) }
-            return false
-        }
-
-        MediaPipeline.discardScratch(uploaded.flatMap(\.scratch))
-        // Drop only what went up: anything captured while the batch was in
-        // flight stays staged for the next Finish.
-        let sent = Set(uploaded.map(\.id))
-        pendingItems.removeAll { sent.contains($0.id) }
-        pendingTray.update(with: pendingItems)
-        uploadedThumbs.append(contentsOf: uploaded.map(\.thumbnail))
-        refreshUploadedChips()
-
-        if pendingItems.isEmpty {
-            showStatus("Uploaded \(uploaded.count) item\(uploaded.count == 1 ? "" : "s")!",
-                       color: .systemGreen)
-        } else {
-            showStatus("Uploaded \(uploaded.count) of \(batch.count)"
-                       + " — \(pendingItems.count) still staged.", color: .systemOrange)
-        }
-        return pendingItems.isEmpty
-    }
-
-    /// Uploads one staged item to S3 and returns its key plus the scratch files
-    /// that become safe to delete once the key is attached.
-    private func upload(_ item: PendingMedia, label: String)
-    async -> (key: String, thumbnail: UIImage, scratch: [URL])? {
-        let prefix = MediaPipeline.mediaPrefix
-
-        switch item.kind {
-        case .photo(let image):
-            guard let data = MediaPipeline.photoData(from: image) else {
-                showStatus("\(label): couldn't encode the photo.", color: .systemRed)
-                return nil
-            }
-            let key = "\(prefix)/\(UUID().uuidString).jpg"
-            showStatus("\(label) · uploading photo…", color: .secondaryLabel)
-            do {
-                _ = try await Amplify.Storage.uploadData(path: .fromString(key), data: data).value
-            } catch {
-                showStatus("\(label): S3 upload failed: \(String(reflecting: error))",
-                           color: .systemRed)
-                return nil
-            }
-            return (key, image, [])
-
-        case .audio(let audioURL):
-            let key = "\(prefix)/\(UUID().uuidString).m4a"
-            guard await send(audioURL, key: key, label: label) else { return nil }
-            return (key, Self.audioThumbnail(), [audioURL])
-
-        case .video(let videoURL):
-            // Shrink first — this is usually the difference between a
-            // 30-second upload and a 5-minute one on a site connection.
-            showStatus("\(label) · preparing video…", color: .secondaryLabel)
-            let prepared = await MediaPipeline.prepareVideo(at: videoURL)
-            if prepared.didShrink {
-                showStatus("\(label) · compressed to \(MediaPipeline.format(bytes: prepared.byteCount))"
-                           + " (was \(MediaPipeline.format(bytes: prepared.originalByteCount)))",
-                           color: .secondaryLabel)
-            }
-
-            let key = "\(prefix)/\(UUID().uuidString).\(prepared.url.pathExtension)"
-            guard await send(prepared.url, key: key, label: label) else {
-                // Drop the transcode but keep the original: the item stays
-                // staged and can be retried.
-                MediaPipeline.discardScratch(prepared.scratchURLs.filter { $0 != videoURL })
-                return nil
-            }
-
-            let thumbnail = await Task.detached(priority: .userInitiated) { [url = prepared.url] in
-                Self.videoThumbnail(from: url) ?? UIImage()
-            }.value
-            return (key, thumbnail, prepared.scratchURLs)
-        }
-    }
-
-    /// Uploads a file with live progress and cancellation.
-    private func send(_ url: URL, key: String, label: String) async -> Bool {
-        setUploadInProgress(true)
-        do {
-            try await MediaPipeline.uploadFile(
-                at: url,
-                key: key,
-                onStart: { [weak self] task in self?.activeUpload = task },
-                onProgress: { [weak self] fraction, sent, total in
-                    Task { @MainActor in
-                        self?.showStatus(
-                            "\(label) · "
-                            + MediaPipeline.progressText(fraction: fraction, sent: sent, total: total),
-                            color: .secondaryLabel)
-                    }
-                })
-        } catch {
-            setUploadInProgress(false)
-            showStatus("\(label): \(uploadFailureMessage(error))", color: .systemRed)
-            return false
-        }
-        setUploadInProgress(false)
-        return true
-    }
-
-    // MARK: - Upload progress / cancellation
-
-    private func setUploadInProgress(_ uploading: Bool) {
-        cancelUploadButton.isHidden = !uploading
-        uploadButton.isEnabled = !uploading
-        if !uploading { activeUpload = nil }
-    }
-
-    @objc private func cancelUpload() {
-        activeUpload?.cancel()
-        activeUpload = nil
-        cancelUploadButton.isHidden = true
-        uploadButton.isEnabled = true
-        showStatus("Upload cancelled.", color: .systemOrange)
-    }
-
-    /// Amplify reports a cancelled upload as an error; don't call that a failure.
-    private func uploadFailureMessage(_ error: Error) -> String {
-        let text = String(describing: error).lowercased()
-        if text.contains("cancel") { return "Upload cancelled." }
-        return "Upload failed: \(error.localizedDescription)"
-    }
-
     // MARK: - Helpers
 
     private func formatted(_ date: Date, mode: UIDatePicker.Mode) -> String {
@@ -932,23 +661,6 @@ final class NewPointViewController: UIViewController {
         button.translatesAutoresizingMaskIntoConstraints = false
     }
 
-    /// Rebuild the thumbnail chips for items already uploaded.
-    private func refreshUploadedChips() {
-        uploadedChipsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for thumb in uploadedThumbs {
-            let iv = UIImageView(image: thumb)
-            iv.contentMode = .scaleAspectFill
-            iv.clipsToBounds = true
-            iv.layer.cornerRadius = 6
-            iv.translatesAutoresizingMaskIntoConstraints = false
-            iv.widthAnchor.constraint(equalToConstant: 48).isActive = true
-            iv.heightAnchor.constraint(equalToConstant: 48).isActive = true
-            uploadedChipsStack.addArrangedSubview(iv)
-        }
-        let hasItems = !uploadedThumbs.isEmpty
-        uploadedLabel.isHidden = !hasItems
-        uploadedChipsStack.isHidden = !hasItems
-    }
 }
 
 // MARK: - PHPickerViewControllerDelegate (library)

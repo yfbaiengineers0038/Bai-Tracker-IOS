@@ -23,6 +23,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         Task { await switchToMapIfSignedIn() }
     }
 
+    /// Anything the queue couldn't finish — a force-quit, a dead uplink, a
+    /// crash — gets another go whenever the app comes back to the foreground.
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        UploadQueue.shared.start()
+    }
+
     private func switchToMapIfSignedIn() async {
         guard let session = try? await Amplify.Auth.fetchAuthSession(),
               session.isSignedIn else { return }

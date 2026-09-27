@@ -17,6 +17,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
+    /// iOS finishes background transfers out of process and then wakes the app
+    /// to hand back the results. Without this the S3 plugin never learns that
+    /// an upload completed while we were suspended, so the bytes sit in the
+    /// bucket with no point referencing them.
+    func application(_ application: UIApplication,
+                     handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        Task {
+            _ = await Amplify.Storage.handleBackgroundEvents(identifier: identifier)
+            await MainActor.run { completionHandler() }
+        }
+    }
+
     // The window and its root view controller belong to `SceneDelegate`; UIKit
     // asks for a configuration here rather than reading one from Info.plist.
     func application(

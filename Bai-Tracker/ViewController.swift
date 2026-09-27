@@ -31,6 +31,10 @@ final class ViewController: UIViewController {
     private var isPlacingPoint = false
     private var placementBanner: UIView!
     private var placementLabel: UILabel!
+
+    /// Shows what the upload queue still has left to send. Hidden when empty.
+    private var uploadBanner: UIView?
+    private var uploadLabel: UILabel?
     /// Floating "Confirm" pill that pops up below the banner while placing
     /// a point — the prominent call-to-action (replaces an in-banner button).
     private var confirmButton: UIButton!
@@ -65,12 +69,85 @@ final class ViewController: UIViewController {
         setupCenterPin()
         setupPointsSheet()
         setupConfirmButton()
+        setupUploadBanner()
         // When the user switches projects (via the folder button), reload
         // points filtered to the new project and re-center the camera.
         ProjectStore.shared.onChange = { [weak self] in
             DispatchQueue.main.async { self?.reloadPoints() }
         }
+        observeUploadQueue()
         Task { await loadPoints() }
+    }
+
+    // MARK: - Pending uploads
+
+    /// Media uploads outlive the screen that started them, so the only place a
+    /// crew can see what's left is here.
+    private func setupUploadBanner() {
+        let banner = UIView()
+        banner.backgroundColor = UIColor.appPurple.withAlphaComponent(0.92)
+        banner.layer.cornerRadius = 10
+        banner.translatesAutoresizingMaskIntoConstraints = false
+        banner.isHidden = true
+
+        let label = UILabel()
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        banner.addSubview(label)
+
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.color = .white
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.startAnimating()
+        banner.addSubview(spinner)
+
+        NSLayoutConstraint.activate([
+            spinner.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 14),
+            spinner.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
+
+            label.leadingAnchor.constraint(equalTo: spinner.trailingAnchor, constant: 10),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: banner.trailingAnchor, constant: -14),
+            label.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
+
+            banner.heightAnchor.constraint(equalToConstant: 40)
+        ])
+
+        view.addSubview(banner)
+        NSLayoutConstraint.activate([
+            banner.bottomAnchor.constraint(equalTo: pointsSheet.topAnchor, constant: -12),
+            banner.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            banner.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16)
+        ])
+        uploadBanner = banner
+        uploadLabel = label
+    }
+
+    private func observeUploadQueue() {
+        let queue = UploadQueue.shared
+        queue.onChange = { [weak self] in self?.refreshUploadBanner() }
+        // A point that gains media while its screen is closed still needs its
+        // thumbnails refreshed on the map's list.
+        queue.onAttach = { [weak self] _ in
+            Task { await self?.loadPoints() }
+        }
+        queue.start()
+        refreshUploadBanner()
+    }
+
+    private func refreshUploadBanner() {
+        let queue = UploadQueue.shared
+        let count = queue.pendingCount
+        guard count > 0 else {
+            uploadBanner?.isHidden = true
+            return
+        }
+        var text = count == 1 ? "1 upload pending" : "\(count) uploads pending"
+        if let fraction = queue.currentFraction {
+            text += " · \(Int(fraction * 100))%"
+        }
+        uploadLabel?.text = text
+        uploadBanner?.isHidden = false
     }
 
     // MARK: - Map
