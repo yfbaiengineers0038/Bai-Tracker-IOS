@@ -35,9 +35,13 @@ final class ProjectPickerViewController: UIViewController {
                 title: "Cancel", style: .plain, target: self, action: #selector(cancel))
         }
 
-        // New Project button, top-right.
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "New Project", style: .done, target: self, action: #selector(newProjectTapped))
+        // New Project is admin-only: the backend refuses project creation from
+        // a project group, since that would let a member add project folders
+        // beyond the ones they were granted.
+        if UserSession.shared.isAdmin {
+            navigationItem.rightBarButtonItem = UIBarButtonItem(
+                title: "New Project", style: .done, target: self, action: #selector(newProjectTapped))
+        }
 
         setupLayout()
         Task { await loadProjects() }
@@ -80,13 +84,14 @@ final class ProjectPickerViewController: UIViewController {
         let query = """
         query ListProjects {
           listProjects {
-            items { id name lat lng zoom }
+            items { id name lat lng zoom accessGroup }
           }
         }
         """
         struct Item: Decodable {
             let id: String; let name: String
             let lat: Double; let lng: Double; let zoom: Double?
+            let accessGroup: String?
         }
         struct ListResult: Decodable { let items: [Item] }
         struct ResponseData: Decodable { let listProjects: ListResult }
@@ -100,11 +105,16 @@ final class ProjectPickerViewController: UIViewController {
             }
             let items = data.listProjects.items
             await MainActor.run {
+                // AppSync has already filtered by the caller's groups: a member
+                // gets only the projects they're in, an admin gets all of them.
                 self.projects = items.map {
-                    Project(id: $0.id, name: $0.name, lat: $0.lat, lng: $0.lng, zoom: $0.zoom ?? 14)
+                    Project(id: $0.id, name: $0.name, lat: $0.lat, lng: $0.lng,
+                            zoom: $0.zoom ?? 14, accessGroup: $0.accessGroup)
                 }
                 if self.projects.isEmpty {
-                    self.showStatus("No projects available yet.")
+                    self.showStatus(UserSession.shared.isAdmin
+                                    ? "No projects available yet."
+                                    : "No project has been shared with your account yet.")
                 } else {
                     self.statusLabel.isHidden = true
                     self.tableView.reloadData()
@@ -125,21 +135,34 @@ final class ProjectPickerViewController: UIViewController {
     // MARK: - New Project
 
     @objc private func newProjectTapped() {
-        let alert = UIAlertController(title: "New Project",
-                                      message: "Enter a name for the project.",
-                                      preferredStyle: .alert)
+        let alert = UIAlertController(
+            title: "New Project",
+            message: "Name the project, and the Cognito group whose members"
+                     + " should see it — create that group in the Cognito"
+                     + " console and add the people who need access. Leave it"
+                     + " blank to keep the project visible to Bai staff only.",
+            preferredStyle: .alert)
         alert.addTextField { $0.placeholder = "Project name"; $0.autocapitalizationType = .words }
+        alert.addTextField {
+            $0.placeholder = "Access group (e.g. riverside-survey)"
+            $0.autocapitalizationType = .none
+            $0.autocorrectionType = .no
+        }
         alert.addAction(UIAlertAction(title: "Next", style: .default) { [weak self] _ in
-            let name = (alert.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let fields = alert.textFields ?? []
+            let name = (fields.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let group = (fields.count > 1 ? fields[1].text ?? "" : "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             guard let self, !name.isEmpty else { return }
-            self.chooseLocation(forProjectNamed: name)
+            self.chooseLocation(forProjectNamed: name,
+                                accessGroup: group.isEmpty ? nil : group)
         })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(alert, animated: true)
     }
 
     /// Second step: ask where the project is, searching Google Places.
-    private func chooseLocation(forProjectNamed name: String) {
+    private func chooseLocation(forProjectNamed name: String, accessGroup: String?) {
         let placePicker = PlacePickerViewController()
         placePicker.projectName = name
         // Rank places near where the user is looking on the map first.
@@ -147,14 +170,15 @@ final class ProjectPickerViewController: UIViewController {
         placePicker.onPick = { [weak self] place in
             guard let self else { return }
             navigationController?.popToViewController(self, animated: true)
-            Task { await self.createProject(named: name, at: place) }
+            Task { await self.createProject(named: name, at: place, accessGroup: accessGroup) }
         }
         navigationController?.pushViewController(placePicker, animated: true)
     }
 
     /// Creates a project centered on the place the user picked, then switches
     /// to it.
-    private func createProject(named name: String, at place: PlaceLocation) async {
+    private func createProject(named name: String, at place: PlaceLocation,
+                               accessGroup: String?) async {
         let lat = place.latitude
         let lng = place.longitude
         // Neighborhood-level zoom, close enough to start dropping points.
@@ -163,17 +187,20 @@ final class ProjectPickerViewController: UIViewController {
         showStatus("Creating project…")
         let mutation = """
         mutation CreateProject($input: CreateProjectInput!) {
-          createProject(input: $input) { id name lat lng zoom }
+          createProject(input: $input) { id name lat lng zoom accessGroup }
         }
         """
         struct CreatedProject: Decodable {
             let id: String; let name: String
             let lat: Double; let lng: Double; let zoom: Double?
+            let accessGroup: String?
         }
         struct ResponseData: Decodable { let createProject: CreatedProject }
-        let vars: [String: Any] = ["input": [
-            "name": name, "lat": lat, "lng": lng, "zoom": zoom
-        ]]
+        var input: [String: Any] = ["name": name, "lat": lat, "lng": lng, "zoom": zoom]
+        // Omit rather than send null when unassigned — the project then stays
+        // admin-only until a group is set.
+        if let accessGroup { input["accessGroup"] = accessGroup }
+        let vars: [String: Any] = ["input": input]
         let request = GraphQLRequest<ResponseData>(
             document: mutation, variables: vars, responseType: ResponseData.self)
 
@@ -184,7 +211,8 @@ final class ProjectPickerViewController: UIViewController {
                 return
             }
             let c = data.createProject
-            let project = Project(id: c.id, name: c.name, lat: c.lat, lng: c.lng, zoom: c.zoom ?? zoom)
+            let project = Project(id: c.id, name: c.name, lat: c.lat, lng: c.lng,
+                                  zoom: c.zoom ?? zoom, accessGroup: c.accessGroup)
             await MainActor.run { select(project) }
         } catch {
             await MainActor.run { showStatus("Failed: \(error.localizedDescription)") }
@@ -308,7 +336,7 @@ final class ProjectPickerViewController: UIViewController {
             }
         } else if let window = view.window {
             // 2. We ARE the window's root (launched already signed in, see
-            //    AppDelegate) → there is nothing to dismiss; swap the root.
+            //    SceneDelegate) → there is nothing to dismiss; swap the root.
             window.rootViewController = mapVC
             UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
         }

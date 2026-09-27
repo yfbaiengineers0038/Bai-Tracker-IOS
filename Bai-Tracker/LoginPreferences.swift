@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Cognito already persists its session in the keychain, so the app would stay
 /// signed in indefinitely on its own. This store turns that into an explicit,
-/// opt-out choice: when `rememberMe` is false, `AppDelegate` drops the restored
+/// opt-out choice: when `rememberMe` is false, `SceneDelegate` drops the restored
 /// session on the next launch and the user has to sign in again.
 enum LoginPreferences {
 

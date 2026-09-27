@@ -9,6 +9,11 @@ struct Project: Codable, Equatable {
     let lat: Double
     let lng: Double
     let zoom: Double
+    /// Cognito group allowed to see this project — one group per project, e.g.
+    /// `riverside-survey`. Nil means unassigned, which the backend treats as
+    /// admin-only. Optional so a project persisted by an earlier build still
+    /// decodes.
+    var accessGroup: String? = nil
 }
 
 /// Holds the currently-selected project, persisted in `UserDefaults` so a

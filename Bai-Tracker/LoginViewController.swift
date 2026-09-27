@@ -47,16 +47,6 @@ final class LoginViewController: UIViewController {
         return b
     }()
 
-    private let signUpButton: UIButton = {
-        var config = UIButton.Configuration.bordered()
-        config.title = "Create Account"
-        config.baseForegroundColor = .appPurple
-        let b = UIButton(configuration: config)
-        b.tintColor = .appPurple
-        b.translatesAutoresizingMaskIntoConstraints = false
-        return b
-    }()
-
     private let statusLabel: UILabel = {
         let l = UILabel()
         l.font = .systemFont(ofSize: 14)
@@ -93,9 +83,11 @@ final class LoginViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
 
+        // No self-registration: accounts are created by Bai Engineering and
+        // scoped to a client, so there's nothing for a stranger to sign up for.
         let stack = UIStackView(arrangedSubviews: [
             logoView, emailField, passwordField, rememberMeButton,
-            signInButton, signUpButton, statusLabel
+            signInButton, statusLabel
         ])
         stack.axis = .vertical
         stack.spacing = 12
@@ -109,7 +101,6 @@ final class LoginViewController: UIViewController {
         ])
 
         signInButton.addTarget(self, action: #selector(handleSignIn), for: .touchUpInside)
-        signUpButton.addTarget(self, action: #selector(handleSignUp), for: .touchUpInside)
         rememberMeButton.addTarget(self, action: #selector(toggleRememberMe), for: .touchUpInside)
 
         // Return key walks the fields, then submits.
@@ -169,9 +160,13 @@ final class LoginViewController: UIViewController {
             do {
                 let result = try await signInClearingStaleSession(username: email, password: password)
                 if result.isSignedIn {
+                    await finishSignIn(email: email)
+                } else if case .confirmSignInWithNewPassword = result.nextStep {
+                    // Accounts are created by an administrator with a temporary
+                    // password; Cognito demands a real one on first sign-in.
                     await MainActor.run {
-                        LoginPreferences.record(rememberMe: rememberMe, email: email)
-                        showMap()
+                        setLoading(false)
+                        promptNewPassword(email: email)
                     }
                 } else {
                     await MainActor.run {
@@ -208,10 +203,69 @@ final class LoginViewController: UIViewController {
         }
     }
 
-    @objc private func handleSignUp() {
-        let registerVC = RegisterViewController()
-        registerVC.modalPresentationStyle = .fullScreen
-        present(registerVC, animated: true)
+    /// Loads the user's groups before showing anything role-dependent, then
+    /// enters the app.
+    private func finishSignIn(email: String) async {
+        await UserSession.shared.refresh()
+        await MainActor.run {
+            LoginPreferences.record(rememberMe: rememberMe, email: email)
+            showMap()
+        }
+    }
+
+    // MARK: - First sign-in password
+
+    /// Asks an invited user to replace the temporary password Cognito emailed
+    /// them.
+    private func promptNewPassword(email: String) {
+        let alert = UIAlertController(
+            title: "Set a Password",
+            message: "Choose a password for \(email). It needs 8+ characters"
+                     + " with an uppercase letter, a lowercase letter, a number,"
+                     + " and a symbol.",
+            preferredStyle: .alert)
+        alert.addTextField {
+            $0.placeholder = "New password"
+            $0.isSecureTextEntry = true
+            $0.textContentType = .newPassword
+        }
+        alert.addTextField {
+            $0.placeholder = "Confirm password"
+            $0.isSecureTextEntry = true
+            $0.textContentType = .newPassword
+        }
+        alert.addAction(UIAlertAction(title: "Continue", style: .default) { [weak self, weak alert] _ in
+            guard let self else { return }
+            let fields = alert?.textFields ?? []
+            let password = fields.first?.text ?? ""
+            let confirm = fields.count > 1 ? fields[1].text ?? "" : ""
+            guard !password.isEmpty else { return }
+            guard password == confirm else {
+                statusLabel.text = "Passwords do not match."
+                return
+            }
+            setLoading(true)
+            Task {
+                do {
+                    let result = try await Amplify.Auth.confirmSignIn(challengeResponse: password)
+                    if result.isSignedIn {
+                        await self.finishSignIn(email: email)
+                    } else {
+                        await MainActor.run {
+                            self.statusLabel.text = "Additional steps required: \(result.nextStep)"
+                            self.setLoading(false)
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.statusLabel.text = error.localizedDescription
+                        self.setLoading(false)
+                    }
+                }
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
     }
 
     private func showMap() {
@@ -236,7 +290,6 @@ final class LoginViewController: UIViewController {
 
     private func setLoading(_ loading: Bool) {
         signInButton.isEnabled = !loading
-        signUpButton.isEnabled = !loading
         statusLabel.text = loading ? "Please wait…" : ""
         statusLabel.textColor = loading ? .secondaryLabel : .systemRed
     }

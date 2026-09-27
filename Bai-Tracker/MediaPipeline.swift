@@ -115,6 +115,16 @@ enum MediaPipeline {
         return FileManager.default.fileExists(atPath: output.path) ? output : nil
     }
 
+    // MARK: - Object keys
+
+    /// Prefix every attachment is stored under.
+    ///
+    /// One flat prefix is safe because the bucket grants `get` but not `list`
+    /// to ordinary members: the only way to reach an object is to know its
+    /// UUID key, and keys only appear on point records the caller is already
+    /// authorized to read.
+    static let mediaPrefix = "point-photos"
+
     // MARK: - Upload
 
     /// Uploads a file to S3, reporting progress as it goes.

@@ -16,10 +16,9 @@ final class PointDetailViewController: UIViewController {
     private var loadedMedia: [MediaItem?]          // parallel to point.photos
     private var photoCollection: UICollectionView!
 
-    // Media staged for upload (set by Photo/Video/Audio buttons, sent by Upload button)
-    private var pendingImage: UIImage?
-    private var pendingVideoURL: URL?
-    private var pendingAudioURL: URL?
+    /// Media captured but not yet uploaded, in capture order. The Photo/Video/
+    /// Audio buttons stage into this; Finish sends the whole batch at once.
+    private var pendingItems: [PendingMedia] = []
 
     /// The running S3 upload, so it can be cancelled mid-flight.
     private var activeUpload: StorageUploadFileTask?
@@ -44,7 +43,6 @@ final class PointDetailViewController: UIViewController {
     // MARK: - Fields
 
     private lazy var dateField        = LabeledField(label: "Date",        value: point.date)
-    private lazy var timeField        = LabeledField(label: "Time",        value: point.time)
     private lazy var locationField    = LabeledField(label: "Name",        value: point.location)
     private lazy var descriptionField = LabeledField(label: "Description", value: point.description)
     private lazy var categoryField: CategoryPickerView = {
@@ -52,9 +50,24 @@ final class PointDetailViewController: UIViewController {
         v.categoryName = point.category
         return v
     }()
+    /// Shows and edits the point's creation stamp. Pinned to the zone the point
+    /// was created in, so the reading here is the one that was recorded — it
+    /// doesn't shift with wherever the viewer is.
+    private lazy var timePicker: UIDatePicker = {
+        let p = UIDatePicker()
+        p.datePickerMode = .time
+        p.preferredDatePickerStyle = .compact
+        p.tintColor = .appPurple
+        p.timeZone = point.creationZone
+        p.date = point.recordedAt ?? Date()
+        return p
+    }()
+
+    /// The clock the time above is on, read-only. Shows `creationZone` rather
+    /// than the raw stored string so it always names the zone the picker is
+    /// actually using, including for older rows saved without one.
     private lazy var timezoneField: LabeledField = {
-        // Timezone is captured at creation and shown read-only.
-        let f = LabeledField(label: "Timezone", value: point.timezone)
+        let f = LabeledField(label: "Timezone", value: point.creationZone.identifier)
         f.textField.isEnabled = false
         f.textField.textColor = .secondaryLabel
         return f
@@ -76,25 +89,8 @@ final class PointDetailViewController: UIViewController {
         return f
     }()
 
-    private let newMediaPreview: UIImageView = {
-        let iv = UIImageView()
-        iv.contentMode = .scaleAspectFill
-        iv.clipsToBounds = true
-        iv.layer.cornerRadius = 8
-        iv.backgroundColor = .secondarySystemBackground
-        iv.isHidden = true
-        iv.heightAnchor.constraint(equalToConstant: 180).isActive = true
-        return iv
-    }()
-
-    private let newMediaVideoIcon: UIImageView = {
-        let iv = UIImageView(image: UIImage(systemName: "play.circle.fill",
-                             withConfiguration: UIImage.SymbolConfiguration(pointSize: 40)))
-        iv.tintColor = .white
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        iv.isHidden = true
-        return iv
-    }()
+    /// Everything captured but not yet uploaded. Hidden while empty.
+    private let pendingTray = PendingMediaTray()
 
     private let statusLabel: UILabel = {
         let l = UILabel()
@@ -144,12 +140,7 @@ final class PointDetailViewController: UIViewController {
         photoCollection.heightAnchor.constraint(equalToConstant: 100).isActive = true
         photoCollection.isHidden = point.photos.isEmpty
 
-        // Overlay play icon on the staged-media preview
-        newMediaPreview.addSubview(newMediaVideoIcon)
-        NSLayoutConstraint.activate([
-            newMediaVideoIcon.centerXAnchor.constraint(equalTo: newMediaPreview.centerXAnchor),
-            newMediaVideoIcon.centerYAnchor.constraint(equalTo: newMediaPreview.centerYAnchor)
-        ])
+        pendingTray.onRemove = { [weak self] index in self?.removeStaged(at: index) }
 
         let photoBtn  = makeButton(title: "Photo",  color: .systemBlue,  action: #selector(addPhoto))
         let videoBtn  = makeButton(title: "Video",  color: .systemBlue,  action: #selector(addVideo))
@@ -175,11 +166,12 @@ final class PointDetailViewController: UIViewController {
         commentsHeader.textColor = .secondaryLabel
 
         let stack = UIStackView(arrangedSubviews: [
-            dateField.container, timeField.container,
+            dateField.container, labeledRow(label: "Time", control: timePicker),
+            timezoneField.container,
             locationField.container, descriptionField.container,
-            categoryField, timezoneField.container,
+            categoryField,
             commentsHeader, commentsStack, commentInputRow,
-            photoCollection, newMediaPreview,
+            photoCollection, pendingTray,
             mediaRow, statusLabel, cancelUploadButton, actionRow
         ])
         stack.axis = .vertical
@@ -352,7 +344,9 @@ final class PointDetailViewController: UIViewController {
 
     private func pickFromLibrary(_ filter: PHPickerFilter) {
         var config = PHPickerConfiguration(photoLibrary: .shared())
-        config.selectionLimit = 1
+        // 0 = unlimited: pick a whole set at once, matching the staged-batch
+        // flow the camera path uses.
+        config.selectionLimit = 0
         config.filter = filter
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
@@ -389,119 +383,185 @@ final class PointDetailViewController: UIViewController {
         }
     }
 
-    private func setPendingMedia(image: UIImage?, videoURL: URL?, audioURL: URL? = nil) {
-        pendingImage    = image
-        pendingVideoURL = videoURL
-        pendingAudioURL = audioURL
-        newMediaPreview.image    = image
-        newMediaPreview.isHidden = (image == nil)
-        newMediaVideoIcon.isHidden = (videoURL == nil)
-        // A waveform symbol would be cropped by the photo/video fill mode.
-        newMediaPreview.contentMode = (audioURL == nil) ? .scaleAspectFill : .scaleAspectFit
-        // Auto-upload as soon as media is captured/picked — no Finish tap needed.
-        if image != nil {
-            uploadMedia()
-        }
+    // MARK: - Staging
+
+    /// Adds a capture to the batch. Nothing is uploaded here — the user keeps
+    /// shooting and Finish sends everything in one go.
+    private func stage(_ item: PendingMedia) {
+        pendingItems.append(item)
+        pendingTray.update(with: pendingItems)
+        showStatus(stagedSummary(), color: .secondaryLabel)
+    }
+
+    private func removeStaged(at index: Int) {
+        guard pendingItems.indices.contains(index) else { return }
+        let removed = pendingItems.remove(at: index)
+        MediaPipeline.discardScratch(removed.fileURL.map { [$0] } ?? [])
+        pendingTray.update(with: pendingItems)
+        showStatus(pendingItems.isEmpty ? "Nothing staged." : stagedSummary(),
+                   color: .secondaryLabel)
+    }
+
+    private func stagedSummary() -> String {
+        "\(pendingItems.count) item\(pendingItems.count == 1 ? "" : "s") staged"
+        + " — tap Finish to upload."
+    }
+
+    /// After a camera capture, offer to keep shooting. This is the point of
+    /// staging: several shots in a row, then a single batch upload.
+    private func promptForAnotherCapture(isVideo: Bool) {
+        let count = pendingItems.count
+        let alert = UIAlertController(
+            title: isVideo ? "Video Added" : "Photo Added",
+            message: "\(count) item\(count == 1 ? "" : "s") staged. Take another,"
+                     + " or tap Finish to upload them all at once.",
+            preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: isVideo ? "Record Another" : "Take Another",
+                                      style: .default) { [weak self] _ in
+            guard let self else { return }
+            if isVideo { recordVideo() } else { takePhoto() }
+        })
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
     }
 
     // MARK: - Upload button
 
-    /// Commits the point: uploads anything still pending (including a memo the
+    /// Commits the point: uploads the whole staged batch (including a memo the
     /// user just recorded), then saves the edited fields and closes the sheet.
     @objc private func uploadAndSave() {
         // A recording still running would otherwise be lost on dismiss.
         if audioRecorder?.isRecording == true { stopRecording() }
 
-        guard pendingImage != nil || pendingVideoURL != nil || pendingAudioURL != nil else {
+        guard !pendingItems.isEmpty else {
             save()
             return
         }
 
         Task {
-            await uploadPendingMedia()
-            // Only close once the media is safely attached.
-            if pendingImage == nil && pendingVideoURL == nil && pendingAudioURL == nil {
-                save()
+            // Only close once every item is safely attached; anything that
+            // failed stays staged so Finish can be tapped again.
+            if await uploadStagedBatch() { save() }
+        }
+    }
+
+    /// Uploads every staged item, then attaches the whole batch to the point in
+    /// a single mutation. Returns true only if nothing was left behind.
+    ///
+    /// Items that fail stay staged (with their scratch files intact) so Finish
+    /// can be tapped again without re-shooting.
+    private func uploadStagedBatch() async -> Bool {
+        let batch = pendingItems
+        var uploaded: [(id: UUID, key: String, item: MediaItem, scratch: [URL])] = []
+
+        for (index, staged) in batch.enumerated() {
+            let label = "Item \(index + 1) of \(batch.count)"
+            if let result = await upload(staged, label: label) {
+                uploaded.append((staged.id, result.key, result.item, result.scratch))
             }
         }
-    }
 
-    /// Uploads whatever is in the pending slot. Audio is checked first: a memo
-    /// carries a placeholder image for the preview, not a real photo.
-    private func uploadPendingMedia() async {
-        if let audioURL = pendingAudioURL {
-            await uploadAudio(audioURL)
-        } else if let videoURL = pendingVideoURL {
-            await uploadVideo(videoURL)
-        } else if let image = pendingImage, let data = image.jpegData(compressionQuality: 0.8) {
-            await uploadPhoto(data: data, thumbnail: image)
+        guard !uploaded.isEmpty else {
+            pendingTray.update(with: pendingItems)
+            return false
         }
-    }
 
-    /// Auto-upload path used right after capture.
-    private func uploadMedia() {
-        guard pendingImage != nil || pendingVideoURL != nil || pendingAudioURL != nil else {
-            showStatus("Take or choose a photo/video first.", color: .systemOrange); return
-        }
-        Task { await uploadPendingMedia() }
-    }
-
-    private func uploadPhoto(data: Data, thumbnail: UIImage) async {
-        let key = "point-photos/\(point.id)-\(UUID().uuidString).jpg"
-        showStatus("Uploading photo…", color: .secondaryLabel)
+        // One write for the batch rather than one per item.
+        let photos = point.photos + uploaded.map(\.key)
         do {
-            _ = try await Amplify.Storage.uploadData(path: .fromString(key), data: data).value
+            try await updatePhotosOnBackend(photos)
         } catch {
-            showStatus("S3 upload failed: \(String(reflecting: error))", color: .systemRed)
-            return
+            showStatus("Uploaded but metadata save failed: \(String(reflecting: error))",
+                       color: .systemOrange)
+            // The bytes are in S3 but nothing references them — remove the
+            // objects rather than leave them orphaned in the bucket, and keep
+            // the items staged so the user can retry.
+            for entry in uploaded { await MediaPipeline.deleteOrphan(key: entry.key) }
+            return false
         }
-        if await !persistKey(key, newItem: .photo(thumbnail)) {
-            await MediaPipeline.deleteOrphan(key: key)
+
+        MediaPipeline.discardScratch(uploaded.flatMap(\.scratch))
+        point.photos = photos
+        loadedMedia.append(contentsOf: uploaded.map(\.item))
+        // Drop only what went up: anything captured while the batch was in
+        // flight stays staged for the next Finish.
+        let sent = Set(uploaded.map(\.id))
+        pendingItems.removeAll { sent.contains($0.id) }
+        pendingTray.update(with: pendingItems)
+        photoCollection.isHidden = false
+        photoCollection.reloadData()
+        delegate?.pointDetailDidUpdate(point)
+
+        if pendingItems.isEmpty {
+            showStatus("Uploaded \(uploaded.count) item\(uploaded.count == 1 ? "" : "s")!",
+                       color: .systemGreen)
+        } else {
+            showStatus("Uploaded \(uploaded.count) of \(batch.count)"
+                       + " — \(pendingItems.count) still staged.", color: .systemOrange)
+        }
+        return pendingItems.isEmpty
+    }
+
+    /// Uploads one staged item to S3 and returns its key, the gallery entry for
+    /// it, and the scratch files that become safe to delete once attached.
+    private func upload(_ staged: PendingMedia, label: String)
+    async -> (key: String, item: MediaItem, scratch: [URL])? {
+        let prefix = MediaPipeline.mediaPrefix
+
+        switch staged.kind {
+        case .photo(let image):
+            guard let data = image.jpegData(compressionQuality: 0.8) else {
+                showStatus("\(label): couldn't encode the photo.", color: .systemRed)
+                return nil
+            }
+            let key = "\(prefix)/\(point.id)-\(UUID().uuidString).jpg"
+            showStatus("\(label) · uploading photo…", color: .secondaryLabel)
+            do {
+                _ = try await Amplify.Storage.uploadData(path: .fromString(key), data: data).value
+            } catch {
+                showStatus("\(label): S3 upload failed: \(String(reflecting: error))",
+                           color: .systemRed)
+                return nil
+            }
+            return (key, .photo(image), [])
+
+        case .audio(let audioURL):
+            let key = "\(prefix)/\(point.id)-\(UUID().uuidString).m4a"
+            guard await send(audioURL, key: key, label: label) else { return nil }
+            let playURL = (try? await Amplify.Storage.getURL(path: .fromString(key))) ?? audioURL
+            return (key,
+                    .video(thumbnail: NewPointViewController.audioThumbnail(), url: playURL),
+                    [audioURL])
+
+        case .video(let videoURL):
+            // Shrink first — this is usually the difference between a
+            // 30-second upload and a 5-minute one on a site connection.
+            showStatus("\(label) · preparing video…", color: .secondaryLabel)
+            let prepared = await MediaPipeline.prepareVideo(at: videoURL)
+            if prepared.didShrink {
+                showStatus("\(label) · compressed to \(MediaPipeline.format(bytes: prepared.byteCount))"
+                           + " (was \(MediaPipeline.format(bytes: prepared.originalByteCount)))",
+                           color: .secondaryLabel)
+            }
+
+            let key = "\(prefix)/\(point.id)-\(UUID().uuidString).\(prepared.url.pathExtension)"
+            guard await send(prepared.url, key: key, label: label) else {
+                // Drop the transcode but keep the original: the item stays
+                // staged and can be retried.
+                MediaPipeline.discardScratch(prepared.scratchURLs.filter { $0 != videoURL })
+                return nil
+            }
+
+            let thumbnail = await Task.detached(priority: .userInitiated) { [url = prepared.url] in
+                Self.videoThumbnail(from: url) ?? UIImage()
+            }.value
+            let playURL = (try? await Amplify.Storage.getURL(path: .fromString(key))) ?? prepared.url
+            return (key, .video(thumbnail: thumbnail, url: playURL), prepared.scratchURLs)
         }
     }
 
-    private func uploadVideo(_ videoURL: URL) async {
-        // Shrink first — this is usually the difference between a 30-second
-        // upload and a 5-minute one on a site connection.
-        showStatus("Preparing video…", color: .secondaryLabel)
-        let prepared = await MediaPipeline.prepareVideo(at: videoURL)
-        if prepared.didShrink {
-            showStatus("Compressed to \(MediaPipeline.format(bytes: prepared.byteCount))"
-                       + " (was \(MediaPipeline.format(bytes: prepared.originalByteCount)))",
-                       color: .secondaryLabel)
-        }
-
-        let key = "point-photos/\(point.id)-\(UUID().uuidString).\(prepared.url.pathExtension)"
-        guard await performUpload(of: prepared.url, key: key, scratch: prepared.scratchURLs) else {
-            return
-        }
-
-        let thumbnail = await Task.detached(priority: .userInitiated) { [url = prepared.url] in
-            Self.videoThumbnail(from: url) ?? UIImage()
-        }.value
-        let playURL = (try? await Amplify.Storage.getURL(path: .fromString(key))) ?? prepared.url
-
-        if await !persistKey(key, newItem: .video(thumbnail: thumbnail, url: playURL)) {
-            await MediaPipeline.deleteOrphan(key: key)
-        }
-        MediaPipeline.discardScratch(prepared.scratchURLs)
-    }
-
-    private func uploadAudio(_ audioURL: URL) async {
-        let key = "point-photos/\(point.id)-\(UUID().uuidString).m4a"
-        guard await performUpload(of: audioURL, key: key, scratch: [audioURL]) else { return }
-
-        let playURL = (try? await Amplify.Storage.getURL(path: .fromString(key))) ?? audioURL
-        if await !persistKey(key, newItem: .video(thumbnail: NewPointViewController.audioThumbnail(),
-                                                  url: playURL)) {
-            await MediaPipeline.deleteOrphan(key: key)
-        }
-        MediaPipeline.discardScratch([audioURL])
-    }
-
-    /// Uploads with live progress and cancellation. Returns false if it
-    /// failed or was cancelled (scratch files are cleaned up in that case).
-    private func performUpload(of url: URL, key: String, scratch: [URL]) async -> Bool {
+    /// Uploads a file with live progress and cancellation.
+    private func send(_ url: URL, key: String, label: String) async -> Bool {
         setUploadInProgress(true)
         do {
             try await MediaPipeline.uploadFile(
@@ -511,17 +571,17 @@ final class PointDetailViewController: UIViewController {
                 onProgress: { [weak self] fraction, sent, total in
                     Task { @MainActor in
                         self?.showStatus(
-                            MediaPipeline.progressText(fraction: fraction, sent: sent, total: total),
+                            "\(label) · "
+                            + MediaPipeline.progressText(fraction: fraction, sent: sent, total: total),
                             color: .secondaryLabel)
                     }
                 })
         } catch {
             setUploadInProgress(false)
-            MediaPipeline.discardScratch(scratch)
             let text = String(describing: error).lowercased()
             showStatus(text.contains("cancel")
-                       ? "Upload cancelled."
-                       : "Upload failed: \(error.localizedDescription)",
+                       ? "\(label): upload cancelled."
+                       : "\(label): upload failed: \(error.localizedDescription)",
                        color: text.contains("cancel") ? .systemOrange : .systemRed)
             return false
         }
@@ -541,30 +601,6 @@ final class PointDetailViewController: UIViewController {
         activeUpload = nil
         cancelUploadButton.isHidden = true
         showStatus("Upload cancelled.", color: .systemOrange)
-    }
-
-    /// Attaches `key` to the point. Returns false if the metadata write
-    /// failed, meaning the uploaded object is orphaned and should be removed.
-    @discardableResult
-    private func persistKey(_ key: String, newItem: MediaItem) async -> Bool {
-        var updatedPhotos = point.photos
-        updatedPhotos.append(key)
-        do {
-            try await updatePhotosOnBackend(updatedPhotos)
-        } catch {
-            showStatus("Uploaded but metadata save failed: \(String(reflecting: error))", color: .systemOrange)
-            return false
-        }
-        point.photos = updatedPhotos
-        loadedMedia.append(newItem)
-        pendingImage = nil; pendingVideoURL = nil; pendingAudioURL = nil
-        newMediaPreview.isHidden = true
-        newMediaVideoIcon.isHidden = true
-        photoCollection.isHidden = false
-        photoCollection.reloadData()
-        delegate?.pointDetailDidUpdate(point)
-        showStatus("Upload successful!", color: .systemGreen)
-        return true
     }
 
     private func updatePhotosOnBackend(_ photos: [String]) async throws {
@@ -621,10 +657,14 @@ final class PointDetailViewController: UIViewController {
         }
         struct R: Decodable { let updatePoint: U }
 
+        // The picker already reads in the point's creation zone, so this stores
+        // back exactly the wall clock shown on screen.
+        let storedTime = PointTime.timeText(timePicker.date, in: point.creationZone)
+
         let vars: [String: Any] = ["input": [
             "id":          point.id,
             "date":        dateField.textField.text ?? point.date,
-            "time":        timeField.textField.text ?? "",
+            "time":        storedTime,
             "location":    locationField.textField.text ?? "",
             "description": descriptionField.textField.text ?? "",
             "category":    categoryField.categoryName ?? "",
@@ -679,6 +719,9 @@ final class PointDetailViewController: UIViewController {
 
     @objc private func cancel() {
         if audioRecorder?.isRecording == true { discardRecording() }
+        // Staged captures never made it to S3 — don't leave their scratch
+        // files behind in the temp directory.
+        MediaPipeline.discardScratch(pendingItems.compactMap(\.fileURL))
         dismiss(animated: true)
     }
 
@@ -751,9 +794,9 @@ final class PointDetailViewController: UIViewController {
         }
 
         showStatus("Recorded \(Self.durationText(duration)) memo", color: .secondaryLabel)
-        // Placeholder stands in for the preview; audio has no frame to show.
-        setPendingMedia(image: NewPointViewController.audioThumbnail(),
-                        videoURL: nil, audioURL: url)
+        // Placeholder stands in for the thumbnail; audio has no frame to show.
+        stage(PendingMedia(kind: .audio(url),
+                           thumbnail: NewPointViewController.audioThumbnail()))
     }
 
     /// Stops and deletes an in-progress recording (used when cancelling).
@@ -853,6 +896,21 @@ final class PointDetailViewController: UIViewController {
         s.axis = .horizontal; s.spacing = 10; s.distribution = .fillEqually
         return s
     }
+
+    /// Label on the left, compact control on the right — matches how the
+    /// new-point screen presents its pickers.
+    private func labeledRow(label: String, control: UIView) -> UIStackView {
+        let lbl = UILabel()
+        lbl.text = label
+        lbl.font = .systemFont(ofSize: 12, weight: .medium)
+        lbl.textColor = .secondaryLabel
+        lbl.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        let row = UIStackView(arrangedSubviews: [lbl, UIView(), control])
+        row.axis = .horizontal
+        row.spacing = 8
+        row.alignment = .center
+        return row
+    }
 }
 
 // MARK: - PHPickerViewControllerDelegate (library)
@@ -860,21 +918,30 @@ final class PointDetailViewController: UIViewController {
 extension PointDetailViewController: PHPickerViewControllerDelegate {
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         dismiss(animated: true)
-        guard let provider = results.first?.itemProvider else { return }
 
-        if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-            provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { [weak self] url, _ in
-                guard let url else { return }
-                let dest = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString + ".mp4")
-                try? FileManager.default.copyItem(at: url, to: dest)
-                let thumbnail = Self.videoThumbnail(from: dest) ?? UIImage()
-                Task { @MainActor [weak self] in self?.setPendingMedia(image: thumbnail, videoURL: dest) }
-            }
-        } else if provider.canLoadObject(ofClass: UIImage.self) {
-            provider.loadObject(ofClass: UIImage.self) { [weak self] obj, _ in
-                guard let img = obj as? UIImage else { return }
-                Task { @MainActor [weak self] in self?.setPendingMedia(image: img, videoURL: nil) }
+        // Every selection is staged; loads finish independently, so items can
+        // land in a different order than they were picked.
+        for result in results {
+            let provider = result.itemProvider
+
+            if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
+                provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { [weak self] url, _ in
+                    guard let url else { return }
+                    let dest = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString + ".mp4")
+                    try? FileManager.default.copyItem(at: url, to: dest)
+                    let thumbnail = Self.videoThumbnail(from: dest) ?? UIImage()
+                    Task { @MainActor [weak self] in
+                        self?.stage(PendingMedia(kind: .video(dest), thumbnail: thumbnail))
+                    }
+                }
+            } else if provider.canLoadObject(ofClass: UIImage.self) {
+                provider.loadObject(ofClass: UIImage.self) { [weak self] obj, _ in
+                    guard let img = obj as? UIImage else { return }
+                    Task { @MainActor [weak self] in
+                        self?.stage(PendingMedia(kind: .photo(img), thumbnail: img))
+                    }
+                }
             }
         }
     }
@@ -885,15 +952,24 @@ extension PointDetailViewController: PHPickerViewControllerDelegate {
 extension PointDetailViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     func imagePickerController(_ picker: UIImagePickerController,
                                didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-        dismiss(animated: true)
+        var stagedVideo = false
         if let videoURL = info[.mediaURL] as? URL {
             let dest = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString + ".mp4")
             try? FileManager.default.copyItem(at: videoURL, to: dest)
             let thumbnail = Self.videoThumbnail(from: dest) ?? UIImage()
-            setPendingMedia(image: thumbnail, videoURL: dest)
+            stage(PendingMedia(kind: .video(dest), thumbnail: thumbnail))
+            stagedVideo = true
         } else if let img = info[.originalImage] as? UIImage {
-            setPendingMedia(image: img, videoURL: nil)
+            stage(PendingMedia(kind: .photo(img), thumbnail: img))
+        }
+
+        // Offer another shot from the dismissal completion so the alert never
+        // races the camera's own dismissal.
+        let fromCamera = picker.sourceType == .camera
+        dismiss(animated: true) { [weak self] in
+            guard fromCamera else { return }
+            self?.promptForAnotherCapture(isVideo: stagedVideo)
         }
     }
 

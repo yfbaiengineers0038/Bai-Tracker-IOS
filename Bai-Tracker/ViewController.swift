@@ -583,6 +583,9 @@ final class ViewController: UIViewController {
 
             await MainActor.run {
                 ProjectStore.shared.clear() // forget selected project on logout
+                // Drop the cached groups too, so the next user doesn't inherit
+                // this one's role until their own token loads.
+                UserSession.shared.clear()
                 let login = LoginViewController()
                 login.modalPresentationStyle = .fullScreen
                 login.modalTransitionStyle = .crossDissolve

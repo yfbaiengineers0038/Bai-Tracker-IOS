@@ -21,8 +21,11 @@
 		797089DD3064708C000AA526 /* LoginPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797089DC3064708C000AA526 /* LoginPreferences.swift */; };
 		797089DF3064AF2C000AA526 /* MediaPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797089DE3064AF2C000AA526 /* MediaPipeline.swift */; };
 		797089E13064D7D9000AA526 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797089E03064D7D9000AA526 /* Secrets.swift */; };
+		797089E33065DE38000AA526 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797089E23065DE38000AA526 /* SceneDelegate.swift */; };
 		79C3D9953064569B0091CED3 /* PlacesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C3D9943064569B0091CED3 /* PlacesService.swift */; };
 		79C3D997306456B60091CED3 /* PlacePickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C3D996306456B60091CED3 /* PlacePickerViewController.swift */; };
+		79D87AEF3065F428006C1AB9 /* PendingMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D87AEE3065F428006C1AB9 /* PendingMedia.swift */; };
+		79D87AF130660ABC006C1AB9 /* UserSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D87AF030660ABC006C1AB9 /* UserSession.swift */; };
 		7C1B2CFF6ED91E929232CC9F /* RegisterViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB4904798AE659A8D1AA035 /* RegisterViewController.swift */; };
 		7C52592CFB298BEFDC580235 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 86DB401A1FF26505D9025321 /* Assets.xcassets */; };
 		8053580AD0510375C3BF9482 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4E5346459C8727BB5A8967 /* ViewController.swift */; };
@@ -53,8 +56,11 @@
 		797089DC3064708C000AA526 /* LoginPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginPreferences.swift; sourceTree = "<group>"; };
 		797089DE3064AF2C000AA526 /* MediaPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPipeline.swift; sourceTree = "<group>"; };
 		797089E03064D7D9000AA526 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		797089E23065DE38000AA526 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		79C3D9943064569B0091CED3 /* PlacesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacesService.swift; sourceTree = "<group>"; };
 		79C3D996306456B60091CED3 /* PlacePickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePickerViewController.swift; sourceTree = "<group>"; };
+		79D87AEE3065F428006C1AB9 /* PendingMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMedia.swift; sourceTree = "<group>"; };
+		79D87AF030660ABC006C1AB9 /* UserSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSession.swift; sourceTree = "<group>"; };
 		86DB401A1FF26505D9025321 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		943707AF26AC7C92500212F1 /* CategoryColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryColors.swift; sourceTree = "<group>"; };
 		A1D9E6A05F789CF4C6082886 /* bai-eng.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "bai-eng.png"; sourceTree = "<group>"; };
@@ -111,6 +117,9 @@
 				797089DC3064708C000AA526 /* LoginPreferences.swift */,
 				797089DE3064AF2C000AA526 /* MediaPipeline.swift */,
 				797089E03064D7D9000AA526 /* Secrets.swift */,
+				797089E23065DE38000AA526 /* SceneDelegate.swift */,
+				79D87AEE3065F428006C1AB9 /* PendingMedia.swift */,
+				79D87AF030660ABC006C1AB9 /* UserSession.swift */,
 			);
 			path = "Bai-Tracker";
 			sourceTree = "<group>";
@@ -214,6 +223,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				79D87AF130660ABC006C1AB9 /* UserSession.swift in Sources */,
 				A1FB98207B17985A6B247982 /* AppDelegate.swift in Sources */,
 				797089E13064D7D9000AA526 /* Secrets.swift in Sources */,
 				3BCBB19AA744DF0D956DD2E6 /* CategoryColors.swift in Sources */,
@@ -222,11 +232,13 @@
 				A4E53C16C274E6D743BEC1DC /* LoginViewController.swift in Sources */,
 				43FA7A0E1E67AB3225C58DE4 /* NewPointViewController.swift in Sources */,
 				1332E32B3232BE4D4A6949A1 /* PhotoCarouselViewController.swift in Sources */,
+				797089E33065DE38000AA526 /* SceneDelegate.swift in Sources */,
 				79C3D9953064569B0091CED3 /* PlacesService.swift in Sources */,
 				530A0012201F5F18811F30EF /* Point.swift in Sources */,
 				6E77D8F5446E10C7F40CA0B7 /* PointData.swift in Sources */,
 				1BA8248F53DA16FF45523613 /* PointDetailViewController.swift in Sources */,
 				3DCEE4103BB7326774710DB6 /* PointListBottomSheet.swift in Sources */,
+				79D87AEF3065F428006C1AB9 /* PendingMedia.swift in Sources */,
 				797089DD3064708C000AA526 /* LoginPreferences.swift in Sources */,
 				4CA62F9F02CCC6B2A0253854 /* ProjectPickerViewController.swift in Sources */,
 				F4CB0684E269ABE57D2645BC /* ProjectStore.swift in Sources */,
@@ -369,7 +381,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 82V4A8M6HL;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Bai-Tracker/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -391,7 +403,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 82V4A8M6HL;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Bai-Tracker/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
