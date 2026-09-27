@@ -35,6 +35,9 @@ final class ViewController: UIViewController {
     /// Shows what the upload queue still has left to send. Hidden when empty.
     private var uploadBanner: UIView?
     private var uploadLabel: UILabel?
+
+    /// The in-flight points load, so a newer one can cancel it.
+    private var pointLoadTask: Task<Void, Never>?
     /// Floating "Confirm" pill that pops up below the banner while placing
     /// a point — the prominent call-to-action (replaces an in-banner button).
     private var confirmButton: UIButton!
@@ -76,7 +79,7 @@ final class ViewController: UIViewController {
             DispatchQueue.main.async { self?.reloadPoints() }
         }
         observeUploadQueue()
-        Task { await loadPoints() }
+        refreshPoints(recenter: true)
     }
 
     // MARK: - Pending uploads
@@ -129,7 +132,7 @@ final class ViewController: UIViewController {
         // A point that gains media while its screen is closed still needs its
         // thumbnails refreshed on the map's list.
         queue.onAttach = { [weak self] _ in
-            Task { await self?.loadPoints() }
+            self?.refreshPoints(recenter: false)
         }
         queue.start()
         refreshUploadBanner()
@@ -699,11 +702,29 @@ final class ViewController: UIViewController {
 
     // MARK: - Amplify
 
-    /// Clears all loaded points/markers/circles and reloads from the backend,
-    /// filtered by the currently-selected project. Used on first load and on
+    /// Reloads from the backend and re-centers on the selected project. Used on
     /// project switch.
     private func reloadPoints() {
-        // Clear existing markers/circles/labels/list.
+        mapView.animate(to: activeCamera)
+        refreshPoints(recenter: false)
+    }
+
+    /// Reloads from the backend, replacing whatever is on screen.
+    ///
+    /// `recenter` fits the camera to the results — wanted on first load, but
+    /// not when an upload lands while someone is panning around the site.
+    ///
+    /// Cancels any load already running: two overlapping loads would each
+    /// rebuild the display and leave every point on the map twice.
+    private func refreshPoints(recenter: Bool) {
+        pointLoadTask?.cancel()
+        pointLoadTask = Task { [weak self] in
+            await self?.loadPoints(recenter: recenter)
+        }
+    }
+
+    /// Drops every marker, circle, label and list row.
+    private func clearPointDisplay() {
         for m in markerMap.keys { m.map = nil }
         markerMap.removeAll()
         for c in circleMap.values { c.map = nil }
@@ -712,11 +733,6 @@ final class ViewController: UIViewController {
         pointLabels.removeAll()
         points.removeAll()
         pointsSheet?.update(points)
-
-        // Re-center on the (possibly new) project's camera.
-        mapView.animate(to: activeCamera)
-
-        Task { await loadPoints() }
     }
 
     /// Repositions every per-point name label above its point using the current
@@ -751,7 +767,7 @@ final class ViewController: UIViewController {
         }
     }
 
-    private func loadPoints() async {
+    private func loadPoints(recenter: Bool) async {
         let projectId = ProjectStore.shared.current?.id
 
         // Filter by projectId when a project is selected (Lawrence's schema
@@ -793,11 +809,17 @@ final class ViewController: UIViewController {
         do {
             let result = try await Amplify.API.query(request: request)
             guard case .success(let data) = result else { return }
+            // A newer load superseded this one while the query was in flight.
+            guard !Task.isCancelled else { return }
             let items = data.listPoints.items
-            guard !items.isEmpty else { return }
 
             var bounds = GMSCoordinateBounds()
             await MainActor.run {
+                // Replace rather than add to what's on screen: this runs again
+                // every time an upload attaches media, and appending was
+                // leaving a duplicate copy of every point each time.
+                clearPointDisplay()
+
                 for item in items {
                     let coord = CLLocationCoordinate2D(latitude: item.lat, longitude: item.lng)
                     bounds = bounds.includingCoordinate(coord)
@@ -814,7 +836,9 @@ final class ViewController: UIViewController {
                 }
                 self.sortPoints()
                 self.pointsSheet?.update(self.points)
-                mapView.animate(with: GMSCameraUpdate.fit(bounds, withPadding: 60))
+                if recenter, !items.isEmpty {
+                    mapView.animate(with: GMSCameraUpdate.fit(bounds, withPadding: 60))
+                }
                 self.relayoutPointLabels()
             }
         } catch {
