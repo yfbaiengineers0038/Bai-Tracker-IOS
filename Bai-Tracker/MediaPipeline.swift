@@ -12,14 +12,29 @@ enum MediaPipeline {
 
     // MARK: - Limits
 
-    /// Longest in-app recording. A minute of 1080p is already ~110 MB.
+    /// Longest in-app recording. At the target below that's about 28 MB.
     static let maxRecordingDuration: TimeInterval = 90
 
-    /// Export preset for uploads. H.264 1080p keeps the output playable
-    /// everywhere (reports, Windows, older players).
-    /// `AVAssetExportPresetHEVC1920x1080` would roughly halve the size again
-    /// if every consumer of this footage supports HEVC.
-    private static let exportPreset = AVAssetExportPreset1920x1080
+    // MARK: - Upload target
+    //
+    // The camera records 1080p H.264 at roughly 15 Mbps — a 15-second clip is
+    // 27 MB, which is a minute and a half on a 2 Mbps site uplink and far
+    // worse on a weak one.
+    //
+    // `AVAssetExportSession` can't help here: its presets choose their own
+    // bitrate, so exporting 1080p re-encodes at about the same size the camera
+    // already produced, saves nothing, and gets discarded. Hence the
+    // reader/writer pass below, which is the only way to set the bitrate.
+    //
+    // 720p at 2.5 Mbps is ~6x smaller and still reads a pipe label or a meter
+    // face. Audio drops to mono AAC, which is plenty for talking over a clip.
+
+    /// Longest edge of the uploaded video. Portrait clips get 720 wide.
+    private static let targetLongEdge: CGFloat = 1280
+
+    private static let targetVideoBitrate = 2_500_000
+    private static let targetAudioBitrate = 64_000
+    private static let targetAudioSampleRate = 44_100.0
 
     /// Only keep a re-encode if it actually saves something worth the wait.
     private static let minimumUsefulSaving = 0.10
@@ -42,7 +57,8 @@ enum MediaPipeline {
         }
     }
 
-    /// Re-encodes `source` to 1080p when that meaningfully shrinks it.
+    /// Re-encodes `source` to the upload target when that meaningfully shrinks
+    /// it.
     ///
     /// Falls back to the original file whenever the export fails or doesn't
     /// pay for itself, so this can never block an upload.
@@ -77,42 +93,157 @@ enum MediaPipeline {
                              scratchURLs: [source, transcoded])
     }
 
+    /// Re-encodes to H.264 at `targetVideoBitrate`, scaled so the longest edge
+    /// is `targetLongEdge`.
+    ///
+    /// H.264 rather than HEVC so the output plays everywhere it might end up —
+    /// reports, Windows, older players. HEVC would roughly halve the size
+    /// again if every consumer supported it.
+    ///
+    /// Returns nil on any failure; the caller then uploads the original.
     private static func transcode(_ source: URL) async -> URL? {
         let asset = AVURLAsset(url: source)
-        guard let session = AVAssetExportSession(asset: asset, presetName: exportPreset) else {
+
+        guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first,
+              let reader = try? AVAssetReader(asset: asset) else {
             return nil
         }
 
-        // .mp4 where supported so the extension matches what we store; the
-        // app treats .mp4 and .mov alike when playing media back.
-        let fileType: AVFileType = session.supportedFileTypes.contains(.mp4) ? .mp4 : .mov
         let output = FileManager.default.temporaryDirectory
-            .appendingPathComponent("upload-\(UUID().uuidString).\(fileType == .mp4 ? "mp4" : "mov")")
-
-        session.outputURL = output
-        session.outputFileType = fileType
+            .appendingPathComponent("upload-\(UUID().uuidString).mp4")
+        guard let writer = try? AVAssetWriter(outputURL: output, fileType: .mp4) else {
+            return nil
+        }
         // Front-load the moov atom so the file streams instead of needing a
         // full download before it plays.
-        session.shouldOptimizeForNetworkUse = true
+        writer.shouldOptimizeForNetworkUse = true
 
-        if #available(iOS 18.0, *) {
-            do {
-                try await session.export(to: output, as: fileType)
-            } catch {
-                try? FileManager.default.removeItem(at: output)
-                return nil
-            }
-        } else {
-            await withCheckedContinuation { continuation in
-                session.exportAsynchronously { continuation.resume() }
-            }
-            guard session.status == .completed else {
-                try? FileManager.default.removeItem(at: output)
-                return nil
+        // MARK: Video
+
+        guard let naturalSize = try? await videoTrack.load(.naturalSize),
+              let transform = try? await videoTrack.load(.preferredTransform) else {
+            return nil
+        }
+        // Encode at the *stored* (unrotated) size and carry the rotation over
+        // as a transform, exactly as the camera does. A portrait clip is
+        // stored 1920x1080 with a 90° transform; encoding at the rotated
+        // 1080x1920 and also copying the transform would rotate it twice and
+        // stretch the picture. The writer never rotates pixels itself, so the
+        // transform is the only thing that should express orientation.
+        let target = scaled(width: naturalSize.width, height: naturalSize.height)
+
+        let videoOut = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: Int(target.width),
+            AVVideoHeightKey: Int(target.height),
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: targetVideoBitrate,
+                // One keyframe per second: seeking stays usable and the
+                // encoder isn't forced to spend bitrate on them.
+                AVVideoMaxKeyFrameIntervalDurationKey: 1.0,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+            ],
+        ])
+        // The writer applies the rotation itself, so frames arrive upright.
+        videoOut.transform = transform
+        videoOut.expectsMediaDataInRealTime = false
+
+        let videoIn = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+        ])
+        guard reader.canAdd(videoIn), writer.canAdd(videoOut) else { return nil }
+        reader.add(videoIn)
+        writer.add(videoOut)
+
+        // MARK: Audio (optional — a clip may be silent)
+
+        var audioPair: (AVAssetReaderTrackOutput, AVAssetWriterInput)?
+        if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first {
+            let audioOut = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVNumberOfChannelsKey: 1,
+                AVSampleRateKey: targetAudioSampleRate,
+                AVEncoderBitRateKey: targetAudioBitrate,
+            ])
+            audioOut.expectsMediaDataInRealTime = false
+            let audioIn = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: [
+                AVFormatIDKey: kAudioFormatLinearPCM,
+            ])
+            if reader.canAdd(audioIn), writer.canAdd(audioOut) {
+                reader.add(audioIn)
+                writer.add(audioOut)
+                audioPair = (audioIn, audioOut)
             }
         }
 
+        guard reader.startReading(), writer.startWriting() else {
+            try? FileManager.default.removeItem(at: output)
+            return nil
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        // Each track pumps on its own queue; the writer interleaves them.
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await pump(videoIn, into: videoOut, label: "video") }
+            if let (audioIn, audioOut) = audioPair {
+                group.addTask { await pump(audioIn, into: audioOut, label: "audio") }
+            }
+        }
+
+        guard reader.status != .failed else {
+            writer.cancelWriting()
+            try? FileManager.default.removeItem(at: output)
+            return nil
+        }
+
+        await writer.finishWriting()
+        guard writer.status == .completed else {
+            try? FileManager.default.removeItem(at: output)
+            return nil
+        }
         return FileManager.default.fileExists(atPath: output.path) ? output : nil
+    }
+
+    /// Fits `width`x`height` inside `targetLongEdge`, never upscaling, with
+    /// even dimensions because H.264 requires them.
+    private static func scaled(width: CGFloat, height: CGFloat) -> CGSize {
+        guard width > 0, height > 0 else {
+            return CGSize(width: targetLongEdge, height: targetLongEdge * 9 / 16)
+        }
+        let longest = max(width, height)
+        let scale = min(1, targetLongEdge / longest)
+        let w = (width * scale).rounded()
+        let h = (height * scale).rounded()
+        return CGSize(width: max(2, w - w.truncatingRemainder(dividingBy: 2)),
+                      height: max(2, h - h.truncatingRemainder(dividingBy: 2)))
+    }
+
+    /// Copies every sample from one track into its writer input, waiting
+    /// whenever the input's buffer is full.
+    ///
+    /// `requestMediaDataWhenReady` re-invokes its block each time the input
+    /// drains, so `finished` guards against resuming the continuation twice —
+    /// which would trap. The block runs on one serial queue, so a plain flag
+    /// is enough.
+    private static func pump(_ input: AVAssetReaderTrackOutput,
+                             into output: AVAssetWriterInput,
+                             label: String) async {
+        let queue = DispatchQueue(label: "MediaPipeline.\(label)")
+        await withCheckedContinuation { continuation in
+            var finished = false
+            output.requestMediaDataWhenReady(on: queue) {
+                guard !finished else { return }
+                while output.isReadyForMoreMediaData {
+                    guard let sample = input.copyNextSampleBuffer(),
+                          output.append(sample) else {
+                        finished = true
+                        output.markAsFinished()
+                        continuation.resume()
+                        return
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Object keys
