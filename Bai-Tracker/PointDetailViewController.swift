@@ -510,7 +510,7 @@ final class PointDetailViewController: UIViewController {
 
         switch staged.kind {
         case .photo(let image):
-            guard let data = image.jpegData(compressionQuality: 0.8) else {
+            guard let data = MediaPipeline.photoData(from: image) else {
                 showStatus("\(label): couldn't encode the photo.", color: .systemRed)
                 return nil
             }

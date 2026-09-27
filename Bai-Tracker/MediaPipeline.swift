@@ -1,6 +1,7 @@
 import AVFoundation
 import Amplify
 import Foundation
+import UIKit
 
 /// Shared media pipeline for point attachments.
 ///
@@ -38,6 +39,19 @@ enum MediaPipeline {
 
     /// Only keep a re-encode if it actually saves something worth the wait.
     private static let minimumUsefulSaving = 0.10
+
+    // MARK: - Photo target
+    //
+    // The camera shoots 12 MP (4032x3024), which encoded at 0.8 was a 2.8 MB
+    // upload per photo — about 12 seconds each on a 2 Mbps site uplink, so a
+    // five-photo point took a minute.
+    //
+    // 2048 px is ~3 MP: more than a report page or any screen resolves, and
+    // label text stays legible. Measured on real field photos, this lands
+    // around 650 KB, roughly 4x smaller.
+
+    private static let photoLongEdge: CGFloat = 2048
+    private static let photoQuality: CGFloat = 0.70
 
     // MARK: - Video preparation
 
@@ -244,6 +258,39 @@ enum MediaPipeline {
                 }
             }
         }
+    }
+
+    // MARK: - Photo preparation
+
+    /// JPEG bytes for upload: downscaled to `photoLongEdge` and encoded at
+    /// `photoQuality`.
+    ///
+    /// Never upscales, so a photo that's already small passes through at its
+    /// own size. Falls back to encoding at full size if the redraw fails, so
+    /// this can't stop an upload.
+    ///
+    /// `UIGraphicsImageRenderer` bakes in the orientation, which also strips
+    /// EXIF — including any GPS the camera attached. The point carries its own
+    /// coordinates, so nothing is lost that we use, and it's one less way for
+    /// a photo to leak a location once it's out of the app.
+    static func photoData(from image: UIImage) -> Data? {
+        let longest = max(image.size.width, image.size.height)
+        guard longest > photoLongEdge else {
+            return image.jpegData(compressionQuality: photoQuality)
+        }
+
+        let scale = photoLongEdge / longest
+        let target = CGSize(width: (image.size.width * scale).rounded(),
+                            height: (image.size.height * scale).rounded())
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1          // target is already in pixels
+        format.opaque = true      // photos have no alpha; skips a blend
+        let resized = UIGraphicsImageRenderer(size: target, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
+        return resized.jpegData(compressionQuality: photoQuality)
+            ?? image.jpegData(compressionQuality: photoQuality)
     }
 
     // MARK: - Object keys
