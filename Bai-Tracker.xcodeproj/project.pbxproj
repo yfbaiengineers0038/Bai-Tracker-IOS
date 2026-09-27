@@ -26,7 +26,6 @@
 		79C3D997306456B60091CED3 /* PlacePickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C3D996306456B60091CED3 /* PlacePickerViewController.swift */; };
 		79D87AEF3065F428006C1AB9 /* PendingMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D87AEE3065F428006C1AB9 /* PendingMedia.swift */; };
 		79D87AF130660ABC006C1AB9 /* UserSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D87AF030660ABC006C1AB9 /* UserSession.swift */; };
-		7C1B2CFF6ED91E929232CC9F /* RegisterViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB4904798AE659A8D1AA035 /* RegisterViewController.swift */; };
 		7C52592CFB298BEFDC580235 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 86DB401A1FF26505D9025321 /* Assets.xcassets */; };
 		8053580AD0510375C3BF9482 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4E5346459C8727BB5A8967 /* ViewController.swift */; };
 		82703A5FF4564DEACD2C6E14 /* AWSCognitoAuthPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = 32A9426EAF4D5F00D345BEF0 /* AWSCognitoAuthPlugin */; };
@@ -48,7 +47,6 @@
 		26DE4CB2AB97995E6D582607 /* LoginViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
 		33205F252873F23636C9B44A /* CategoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryStore.swift; sourceTree = "<group>"; };
 		3AACD762DC22D4FFC888F92C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		3CB4904798AE659A8D1AA035 /* RegisterViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterViewController.swift; sourceTree = "<group>"; };
 		40958EBC936C0F4F77C862AC /* Bai-Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Bai-Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		53C71FCDC5D917365A26CFD6 /* PointListBottomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointListBottomSheet.swift; sourceTree = "<group>"; };
 		5CE428AA676890805774E914 /* category.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = category.csv; sourceTree = "<group>"; };
@@ -105,7 +103,6 @@
 				53C71FCDC5D917365A26CFD6 /* PointListBottomSheet.swift */,
 				A67A2C3677623EC6E159F4AE /* ProjectPickerViewController.swift */,
 				DE513FABF47FBB7AE1B8845F /* ProjectStore.swift */,
-				3CB4904798AE659A8D1AA035 /* RegisterViewController.swift */,
 				FA4E5346459C8727BB5A8967 /* ViewController.swift */,
 				86DB401A1FF26505D9025321 /* Assets.xcassets */,
 				A1D9E6A05F789CF4C6082886 /* bai-eng.png */,
@@ -244,7 +241,6 @@
 				F4CB0684E269ABE57D2645BC /* ProjectStore.swift in Sources */,
 				797089DF3064AF2C000AA526 /* MediaPipeline.swift in Sources */,
 				79C3D997306456B60091CED3 /* PlacePickerViewController.swift in Sources */,
-				7C1B2CFF6ED91E929232CC9F /* RegisterViewController.swift in Sources */,
 				8053580AD0510375C3BF9482 /* ViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
